@@ -528,11 +528,42 @@ the model had derived them (wrong on 49,280). The divides report `#DE` by return
 value, including quotient overflow, and the sweep runs one on hardware only
 where the model claims success — which is itself the test of that predicate.
 
-Gap: the remaining integer ISA (addressing, MOV/PUSH/POP/LEA and control flow,
-which are 63% of the corpus and a different job from arithmetic); x87, MMX and
-SSE semantics; the execution loop itself; and the five refused 3DNow!
-approximations once their AMD-specified forms are in hand. Decode, engine
-selection, the flag model and the integer ALU are no longer among them.
+**The interpreter executes, as of 2026-09-01.** `src/x86port/{cond,cpu,exec}.{h,c}`
+plus an operand model in `decode.h` complete the loop: decode → operands →
+ALU → flags → conditions → next instruction. Measured against the shipped
+corpus by the same instrument that validated decode, now reporting semantic
+coverage beside decode agreement: **2,036,997 of 2,168,629 instructions (93.93%)
+have semantics in this build**, and it prints the unmodelled remainder ranked by
+mnemonic, so the work list stays current rather than being re-derived.
+
+The three supporting pieces, each verified in the way its failure mode demands:
+
+- **Conditions** — all 16, against hardware `SETcc`, over the entire 64-state
+  flag space. 1024/1024 exact. Enumerated rather than sampled because JB and JL
+  read identically in English and test different flags, and choosing wrong is
+  right for small positive values and wrong across the sign boundary.
+- **Machine state** — registers as an array indexed the way the *encoding*
+  indexes them, since a translator resolves a register at build time and an
+  interpreter resolves it from three ModRM bits at run time. The two traps are
+  byte registers 4–7 being the high bytes of EAX–EBX rather than ESP–EDI, and
+  partial writes preserving the rest; both mutation-tested. Memory is a struct,
+  not a global — the first move toward the independent-memory requirement below.
+- **The step loop** — one instruction, with all five outcomes named (decode
+  failure, unsupported, fetch fault, memory fault, `#DE`), EIP left pointing at
+  the failing instruction, and the mnemonic carried even on a refusal.
+
+Verified end to end on real machine code assembled with `clang -m32`: a sum
+loop, a call with a stack frame (checking ESP balance, not just the return
+value), memory access with MOVZX/MOVSX/LEA at three widths, and
+DIV/SETcc/CMOVcc. Each program asserts what its bytes decode to before running
+them.
+
+Gap: x87, MMX and SSE semantics — x87 alone is ~5% of the corpus and the whole
+of the unmodelled remainder worth naming (FLD 25185, FSTP 21115, FMUL 12120);
+the REP string forms; and the five refused 3DNow! approximations once their
+AMD-specified forms are in hand. Decode, engine selection, the flag model, the
+integer ALU, the conditions, the machine state and the execution loop are no
+longer among them.
 
 ### S044 — DirectDraw guest frontend
 
