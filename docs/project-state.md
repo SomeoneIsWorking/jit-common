@@ -435,7 +435,20 @@ which the translator itself annotates as "embedded data decoded as code". Static
 analysis must guess what is code; an interpreter decodes only what execution
 reaches, so that class of hole stops existing rather than being fixed.
 
-Gap: not started; seed from `shared/recomp-x86`'s existing decode and semantics.
+Started 2026-09-01: `shared/x86port` exists and owns 3DNow! —
+`src/x86port/three_dnow.{h,c}`, 19 opcodes implemented and the 5 approximation
+instructions (PFRCP, PFRSQRT, PFRCPIT1, PFRCPIT2, PFRSQIT1) REFUSED by name
+rather than approximated, since `1.0f/x` for PFRCP agrees to six digits and
+disagrees in the low mantissa bits. 427 checks pass; negative-tested by making
+PFRCP return `1.0f/x`, which fails three assertions across two tests.
+
+Gap: **the decoder is the open question and it is most of the remaining work.**
+`shared/recomp-x86` cannot seed it — corrected by reading it: its front end is
+Ghidra and it lifts disassembled mnemonic TEXT, which is why its failures read
+`mnemonic PFMUL`. It has semantics to seed from and no decode at all, and Ghidra
+can never be a player prerequisite. See I004 for the choice to be made. Beyond
+that: the base integer ISA, x87, MMX and SSE, and the five refused
+approximations once their AMD-specified forms are in hand.
 
 ### S044 — DirectDraw guest frontend
 
