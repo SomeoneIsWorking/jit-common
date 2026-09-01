@@ -510,10 +510,30 @@ modelling it wrongly once cost xmen2 issue #16), and shifts are split by
 direction rather than sharing one CF formula that works only because a caller
 pre-arranges its input.
 
-Gap: the base integer ISA, x87, MMX and SSE semantics; the execution loop
-itself; and the five refused 3DNow! approximations once their AMD-specified
-forms are in hand. Decode, engine selection and the flag model are no longer
-among them.
+**The integer ALU landed 2026-09-01** — `src/x86port/alu.{h,c}` — covering 24
+operations that are **400,614 of the corpus's 2,168,629 instructions (18.47%)**,
+a scope ranked from the real export rather than chosen by intuition. Result and
+flags are one call, which is a deliberate departure: the substrate computes the
+result at the call site and records the flags with a separate `SETFLAGS` macro,
+two facts about one instruction kept in two places at 400,614 sites with nothing
+checking that the flag kind matches the arithmetic done.
+
+**2,342,080 hardware comparisons of result AND flags, 0 mismatches.** This
+closes the gap `test_flags` necessarily left: that suite fed hardware's own
+result back into the model, so it proved the derivation given a result and not
+the results. Two more defects fell out — SAR's carry-out past the operand width
+(SHL and SHR run out of operand bits, SAR never does; wrong on 11,776 of 34,816
+cases) and MUL/IMUL, which write CF and OF and nothing else, this CPU preserving
+all four undefined flags across 65,536 of 65,536 cases in both directions where
+the model had derived them (wrong on 49,280). The divides report `#DE` by return
+value, including quotient overflow, and the sweep runs one on hardware only
+where the model claims success — which is itself the test of that predicate.
+
+Gap: the remaining integer ISA (addressing, MOV/PUSH/POP/LEA and control flow,
+which are 63% of the corpus and a different job from arithmetic); x87, MMX and
+SSE semantics; the execution loop itself; and the five refused 3DNow!
+approximations once their AMD-specified forms are in hand. Decode, engine
+selection, the flag model and the integer ALU are no longer among them.
 
 ### S044 — DirectDraw guest frontend
 
