@@ -32,7 +32,7 @@ S011 is the current focus.
 | ID | Capability or outcome | State | Factual dependency | Goals |
 | --- | --- | --- | --- | --- |
 | S001 | `jit-common` provides W^X executable code memory, including dual-mapping where anonymous RWX is refused | partial | — | G002, G004 |
-| S002 | `jit-common` provides a block cache with chaining, eviction, and invalidation on self-modifying code and bank/overlay switches | missing | S001 | G002 |
+| S002 | `jit-common` provides a block cache with chaining, eviction, and invalidation on self-modifying code and bank/overlay switches | partial | S001 | G002 |
 | S003 | `jit-common` provides a persistent translation cache that is key-bound, verifiable, and safe to discard | missing | S002 | G002, G004 |
 | S004 | `jit-common` provides a reusable override table with gameplay scoping, an A/B disable, and the evidence gate | missing | — | G001, G002 |
 | S005 | `jit-common` provides harness helpers: register-file differ, trace ring, deterministic-replay scaffolding, first-divergence reporting | missing | — | G002, G003 |
@@ -114,6 +114,39 @@ Required capability: a guest-address → translated-block container with block
 chaining, eviction, and invalidation driven by the framework on self-modifying
 code, bank switches, overlay loads, and DMA into code memory. Design the negative
 first: a cache that silently misses must be distinguishable from one that works.
+
+**Landed 2026-09-01** as `src/jitcommon/block_cache.{h,cpp}`. 668 checks.
+
+This is what replaces static recompilation's dispatch table, and the framing
+matters: runtime translation deletes the code-discovery problem by construction,
+but moves the LOOKUP onto the hot path. That same lookup, done linearly, was
+xmen2's worst measured hotspot (C210: 4,592 ms of level load → 500 ms as a
+binary search), and a JIT asks it far more often — so the layout is chosen to be
+**emittable**, not merely fast in C. Open addressing over a power-of-two table
+makes the inline sequence multiply/shift/scale/load/compare;
+`jc_block_table_layout()` publishes the offsets from the real struct so an
+emitter cannot hold a stale copy, and a test reproduces the emitted address
+computation and requires agreement. Deletion shifts backward rather than using
+tombstones, because the emitted fast path examines one slot and every step of
+displacement silently converts an emitted hit into a slow-path call.
+Invalidation is by overlap, not containment.
+
+Mutation testing found two real defects. Both probe loops were unbounded,
+terminating only because the insert limit guarantees a free slot — removing that
+limit did not fail the suite, it HUNG, which is the worst failure mode available.
+And the displacement logic had **zero coverage**: Fibonacci hashing sends
+sequential guest addresses to distinct slots, so no probe chain formed across
+153,600 randomised lookups. Chains are now constructed deliberately, including
+the arrangement that discriminates a wrong displacement rule from a right one and
+the same case across the table wrap. A third defect was in the harness itself —
+two mutations reported as surviving had failed to compile, so a stale binary ran.
+
+Gap: **block chaining is not implemented.** Patching a block's exit to jump
+straight to its successor needs the emitter's patch sites, so it belongs with the
+first backend rather than being half-built here; the cache-side half of it — that
+invalidating a block must unchain everything pointing at it — is designed for but
+unwritten. Eviction is whole-cache flush only: a full table refuses inserts
+rather than evicting a block a chained branch may still reference.
 
 ### S003 — Persistent translation cache
 
