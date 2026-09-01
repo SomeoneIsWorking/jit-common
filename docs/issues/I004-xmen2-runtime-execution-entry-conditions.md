@@ -159,17 +159,20 @@ This project is better positioned for runtime execution than psxport was.
      interpreter that does not exist adds an arm nothing can select. The seam is
      worth landing when there is something on the other side of it, so step 2's
      xmen2 half now follows the interpreter rather than preceding it.
-   - *`shared/x86port` has no remote, and `pc/xmen2` cannot consume a shared repo
-     without one.* The port resolves shared repos through
-     `tools/shared_dir.py` — `$X86PORT_DIR`, `$SHARED_DIR/x86port`, then
-     `vendor/shared/x86port` — and `bootstrap.py`'s `SHARED_REPOS` provisions
-     each from a pinned URL + revision. `alchemy`, `recomp-x86`, `port-assets`
-     and `android-port` all have one; `x86port` and `jit-common` are local-only.
-     Coupling the port to an unpublishable checkout would break the fresh-clone
-     launcher contract for everyone but this machine, which is a worse defect
-     than the delay. **Publishing `shared/x86port` is therefore a prerequisite
-     for step 2's xmen2 half** — it is the user's call, being outward-facing,
-     and it is not needed for step 1.
+   - *~~`shared/x86port` has no remote~~ — RESOLVED 2026-09-01.* The port
+     resolves shared checkouts through `tools/shared_dir.py` and provisions
+     them from a pinned URL + revision in `bootstrap.py`'s `SHARED_REPOS`, so a
+     remote-less repo could not be consumed without breaking the fresh-clone
+     launcher contract everywhere but this machine. Both repos are now
+     published — `SomeoneIsWorking/x86port` and `SomeoneIsWorking/jit-common`,
+     public, matching their siblings. What remains for the wiring is a
+     `SharedRepo` entry pinned to an exact revision, never a branch.
+
+     USER 2026-09-01: "You can create remotes via gh, note this so it will
+     stick" — creating a remote for a new shared repo is pre-authorized and
+     does not need a round trip. The pre-push audit for game assets and
+     machine-specific paths is not waived by it.
+
 3. Measure against the frame budget (§5.1) before considering S041/S042.
 4. The 85 direct symbol calls, then per-module removal of the emitted corpus.
 5. `pc/xmen2/docs/strategy.md` argues for static recompilation and is rewritten
