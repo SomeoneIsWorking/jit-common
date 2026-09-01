@@ -375,6 +375,19 @@ HLE, and the guest graphics frontends. It replaces `shared/recomp-x86`, whose
 x86-32 decode and per-instruction semantics are the seed for the translator.
 `pc/lf2` and `pc/xmen2` become titles over it, and the original Xbox path later.
 
+Entry conditions measured against the running `pc/xmen2` port 2026-09-01 — see
+**I004** for the numbers. Three of them are already met and are what makes this
+the tractable side of the migration: the PE images' real `.text` bytes are
+already mapped into guest memory, `x86_native_call_at()` is a single dispatch
+owner whose "no body here" miss is already explicit and fail-loud, and native
+overrides are keyed by mapped address rather than installed into a generated
+table (the defect psxport must fix first, I003).
+
+Gap: guest memory is a single process-wide arena, so two engines cannot run in
+one process against independent memory even though `CPU` registers are
+instance-owned; 85 hand-written call sites still name generated bodies by C
+symbol; and the framework does not exist yet.
+
 ### S041 — `x86port` x86-64 emission
 
 Required capability: x86-32 guest code executes fast enough on an x86-64 host.
@@ -403,6 +416,27 @@ semantics are already established by a catalogue of shipped titles, whereas here
 we write the translator, so nothing else says what correct means
 (`migration.md` §5, "Interpreters: required only where we wrote the translator").
 
+**This is the first x86 work to do, ahead of S041**, and I004 records why. It is
+not only the semantics authority: it is the only way to obtain a measurement at
+all, because unlike `psxport` — where the interpreter was already in the tree and
+the frame-budget question was answerable in an afternoon (S011) — there is no
+second engine here to measure.
+
+It also has a measured initial coverage target rather than "the ISA". The static
+translator left **8,234 `x86_unsupported_insn()` holes** in the emitted corpus,
+each a loud abort if reached — and **7,410 of them (90.0%) are 3DNow!**, a
+twenty-opcode family from one 3DNow!-compiled math library linked into three
+modules. Twenty opcodes in a decoder close nine tenths of the corpus's holes.
+
+The 10% tail argues the same way from the other side: it is led by x87 80-bit
+spills and then by `INT`, `STD`, `LODSD`, `INSB`, `ARPL`, `BOUND`, `DAA`, `IN`
+and bare segment registers — opcodes a 2005 Windows game does not execute,
+which the translator itself annotates as "embedded data decoded as code". Static
+analysis must guess what is code; an interpreter decodes only what execution
+reaches, so that class of hole stops existing rather than being fixed.
+
+Gap: not started; seed from `shared/recomp-x86`'s existing decode and semantics.
+
 ### S044 — DirectDraw guest frontend
 
 Required capability: a title-independent DirectDraw implementation (surfaces,
@@ -426,7 +460,12 @@ is re-validated against the new oracle.
 
 Required capability: X-Men Legends II reaches its existing conformance milestone
 through the JIT with the Direct3D 8 frontend. `docs/strategy.md` currently argues
-for static recompilation and must be rewritten in the same change.
+for static recompilation and must be rewritten in the same change — in the change
+that lands the frame-budget measurement, not before it.
+
+What is being replaced, measured 2026-09-01: **116,500** translated functions
+across 89 module translation units, **307 MB** of generated C, gitignored and
+regenerated at build time. Ordered work and the four entry conditions: I004.
 
 ### S050 — `jit-*` skills
 

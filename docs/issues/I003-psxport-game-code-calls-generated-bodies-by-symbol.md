@@ -1,7 +1,9 @@
 # I003 — psxport game code calls generated bodies by C symbol, not by guest address
 
-State items: S013 (primary), S011, S014. Goal: G001.
-Status: **open**. Opened 2026-09-01.
+state_items: S013, S011, S014
+goals: G001
+status: open
+opened: 2026-09-01
 
 ## What is in the way of deleting the static translator
 
