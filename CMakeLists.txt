@@ -5,22 +5,31 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+# Warnings are errors everywhere, but the spelling differs. Naming MSVC's
+# equivalent rather than dropping the flags on Windows keeps the strictest
+# platform from becoming the least checked one.
+if(MSVC)
+  set(JC_WARN_FLAGS /W4 /WX)
+else()
+  set(JC_WARN_FLAGS -Wall -Wextra -Werror)
+endif()
+
 add_library(jitcommon STATIC
   src/jitcommon/code_memory.cpp
   src/jitcommon/block_cache.cpp)
 target_include_directories(jitcommon PUBLIC src/jitcommon)
-target_compile_options(jitcommon PRIVATE -Wall -Wextra -Werror)
+target_compile_options(jitcommon PRIVATE ${JC_WARN_FLAGS})
 
 enable_testing()
 
 add_executable(test_code_memory tests/test_code_memory.cpp)
 target_link_libraries(test_code_memory PRIVATE jitcommon)
-target_compile_options(test_code_memory PRIVATE -Wall -Wextra -Werror)
+target_compile_options(test_code_memory PRIVATE ${JC_WARN_FLAGS})
 add_test(NAME test_code_memory COMMAND test_code_memory)
 
 add_executable(test_block_cache tests/test_block_cache.cpp)
 target_link_libraries(test_block_cache PRIVATE jitcommon)
-target_compile_options(test_block_cache PRIVATE -Wall -Wextra -Werror)
+target_compile_options(test_block_cache PRIVATE ${JC_WARN_FLAGS})
 add_test(NAME test_block_cache COMMAND test_block_cache)
 
 # Style is a test, not a convention nobody runs. AGENTS.md states clang-format
