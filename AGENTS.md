@@ -51,4 +51,13 @@ Current focus **S011**. First measurement in: on `psxport`/Tomba! 2, the
 interpreter already runs the game at a median 6.10 ms/frame against a 16.67 ms
 budget (the substrate is 2.27), so desktop PSX needs no JIT to drop static code
 generation. `docs/project-state.md` S011 carries the numbers and what they do
-not cover. No `jit-common` code yet — S001 onward are still untouched.
+not cover.
+
+First code landed: **S001** (`code_memory` — W^X regions, mechanism recorded not
+inferred, unconditional icache flush, every mechanism exercised on this host) and
+**S002** (`block_cache` — Fibonacci-hashed open addressing with backward-shift
+deletion and an emittable published layout) are `partial`; both are usable and
+both name their remaining gap in `docs/project-state.md`. `S002`'s gap is
+chaining, which needs the emitter's patch sites and so waits on the first
+backend. The style gate promised above is a `style` ctest as of 2026-09-02;
+`docs/issues/I005` records that it duplicates psxport's and should be shared.
