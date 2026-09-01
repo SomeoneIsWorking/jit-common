@@ -213,6 +213,18 @@ frame**, worst window 63%. So on desktop PSX, dropping static recompilation
 does not require a JIT at all — the engine that is already in the tree, and is
 already *more* correct than the substrate (S010), is fast enough.
 
+**The two runs were not doing the same work, and the difference favours the
+interpreter.** `overrides::install()`'s `oracleAllowed` defaults to `false` and
+Tomba2Engine opts **zero of its 334 override installs** in, so on the
+Interpreter engine none of the native overrides run: that column is pure guest
+emulation with no native help at all, while the substrate column is recompiled
+C *plus* 334 natives. 6.10 ms/frame is therefore an upper bound on the emulated
+runtime's cost, not a like-for-like engine comparison — the target state
+(runtime execution + overrides) has the natives back and lands below it.
+Establishing that as a measurement rather than an inference needs I003 first,
+because 816 of the overrides' own guest calls are still direct calls into
+recompiled C.
+
 Gaps: that reframes the remaining work. What is still open is not "write a JIT",
 it is:
 
@@ -246,10 +258,28 @@ of it, which JIT-vs-substrate covers.
 ### S013 — `psxport` static translator removed
 
 Required capability: `tools/recomp/` (`decode.py`, `emit.py`, `psexe.py` and
-their tests) and the generated `generated/port/` trees are deleted, the
-regeneration build step is gone, and every doc reference is updated. Blocked
-behind S011 and S014 by sequencing, not by a defect: the static path stays until
-the JIT has reached conformance.
+their tests) and the generated shard trees are deleted, the regeneration build
+step is gone, and every doc reference is updated. Until then Tomba! 2's
+`run.sh` still runs the recompiler (`tools/ensure_recomp.py` →
+`generated/shard_*.c`), which is the user-visible fact this item owns.
+
+**MEASURED 2026-09-01 — what actually blocks it.** `GEN_REC_SRCS` was emptied
+and the `RecompRegistry` nulled, then `tomba2_port` was built in a separate
+tree. Everything COMPILED; only the link failed, with **816 distinct undefined
+symbols across 109 files** — all of them `game/` code naming a generated body
+directly (`gen_func_<addr>`, `func_<addr>`, the overlay equivalents) plus 4
+`*_set_override` calls.
+
+So the framework↔substrate seam is genuinely clean and is not the problem: the
+coupling is entirely game→generated, which `recomp_iface.h` deliberately allows.
+The work is mechanical rewriting of those call sites to guest addresses, with
+one real design gap first — there is no engine-neutral way to super-call the
+original body past your own override. Inventory, the design question, and the
+ordered work: **I003**.
+
+Gap: I003 (816 symbol call sites and the missing engine-neutral super-call).
+S014 conformance through the new engine is the other precondition; the static
+path stays until then.
 
 ### S014 — PSX titles through the JIT
 
