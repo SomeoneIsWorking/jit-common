@@ -31,7 +31,7 @@ S011 is the current focus.
 
 | ID | Capability or outcome | State | Factual dependency | Goals |
 | --- | --- | --- | --- | --- |
-| S001 | `jit-common` provides W^X executable code memory, including dual-mapping where anonymous RWX is refused | missing | — | G002, G004 |
+| S001 | `jit-common` provides W^X executable code memory, including dual-mapping where anonymous RWX is refused | partial | — | G002, G004 |
 | S002 | `jit-common` provides a block cache with chaining, eviction, and invalidation on self-modifying code and bank/overlay switches | missing | S001 | G002 |
 | S003 | `jit-common` provides a persistent translation cache that is key-bound, verifiable, and safe to discard | missing | S002 | G002, G004 |
 | S004 | `jit-common` provides a reusable override table with gameplay scoping, an A/B disable, and the evidence gate | missing | — | G001, G002 |
@@ -72,8 +72,41 @@ S011 is the current focus.
 Required capability: reserve/commit/protect code regions, flip RW↔RX, dual-map a
 `memfd` where anonymous RWX is refused (Android SELinux `execmem`, hardened
 Linux), flush the instruction cache at correct granularity for ARM64 hosts, and
-allocate blocks within branch-displacement range of one another. Nothing exists
-yet; every framework needs this before it can emit a single instruction.
+allocate blocks within branch-displacement range of one another.
+
+**Landed 2026-09-01** as `src/jitcommon/code_memory.{h,cpp}` — the first code in
+this repo. 68 checks.
+
+The interface hands back TWO pointers, `write` and `exec`, equal under mprotect
+and MAP_JIT and different under dual mapping. A single-pointer interface is
+correct on a Linux desktop and wrong on a phone, so the split is structural
+rather than documented. Mechanism is resolved by attempting it once at run time,
+not from the target triple: whether anonymous memory may become executable is
+kernel policy, so a compile-time answer is right on the build machine and wrong
+on the shipping one. A host where nothing works refuses by name instead of
+returning writable memory, which would defer a policy refusal into a jump to a
+non-executable page. The icache flush is unconditional and inside `publish()`,
+because on x86-64 it is a no-op and therefore the easiest thing in the subsystem
+to omit and never notice until ARM64.
+
+Verified by writing real host machine code into a region and calling it, then
+patching and calling again — the second half is the icache test. The battery runs
+through every mechanism the host can provide rather than the one it would pick,
+so **Android's dual-mapping path is exercised on an ordinary Linux box** instead
+of first running on a user's phone; the covered count is printed as its own
+denominator (2 of 2 here).
+
+Mutation testing found a real design defect: `publish()` inferred the mechanism
+from `exec == write` rather than knowing it, so making the pointers equal by
+accident made it mprotect a shared mapping — plausible on Linux, refused on
+Android. The region now records its mechanism. A second survivor exposed a
+missing leak check, which had to run per mechanism because the leak only exists
+under the one with two mappings.
+
+Gap: MAP_JIT (Apple Silicon) and VirtualProtect (Windows) are written but have
+run on no host — stated as unverified, not assumed. Allocation within
+branch-displacement range is not implemented; it belongs with the block cache
+(S002), which is what will need it.
 
 ### S002 — Block cache
 
