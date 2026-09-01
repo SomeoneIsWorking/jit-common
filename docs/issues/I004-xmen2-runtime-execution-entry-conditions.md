@@ -104,11 +104,27 @@ This project is better positioned for runtime execution than psxport was.
 ## Ordered work
 
 1. **S043 first, not S041.** The x86-32 interpreter is the semantics authority
-   and also the thing that makes a measurement possible. Seed its decode and
-   per-instruction semantics from `shared/recomp-x86`'s translator, which
-   already encodes them. The initial coverage target is measured, not guessed:
-   **3DNow!'s 20 opcodes clear 90% of the corpus's holes**, and much of the tail
-   is misdecoded data an interpreter never has to decode at all.
+   and also the thing that makes a measurement possible. The initial coverage
+   target is measured, not guessed: **3DNow!'s 20 opcodes clear 90% of the
+   corpus's holes**, and much of the tail is misdecoded data an interpreter
+   never has to decode at all.
+
+   **`shared/recomp-x86` has NO decoder to seed from** — corrected 2026-09-01
+   after reading it rather than assuming. Its front end is Ghidra
+   (`tools/ghidra_export.sh` → `functions.json`) and `recomp.py` lifts
+   disassembled *mnemonic text*, which is exactly why its failures read
+   `mnemonic PFMUL` rather than an opcode byte. Its per-instruction semantics
+   are a real seed; its decode does not exist. And Ghidra is a maintainer-only
+   tool that can never be a player prerequisite, so the interpreter needs its
+   own decoder. **That is the open decision**, and it is the bulk of S043:
+   embed a decode-only library (no memory-model or threading opinions to fight,
+   unlike embedding a whole core) or write one for the reached subset.
+
+   Started 2026-09-01: `shared/x86port` exists, with 3DNow! semantics as its
+   first module — 19 opcodes implemented, the 5 approximation instructions
+   refused by name rather than approximated, 427 checks. Deliberately chosen as
+   the first piece because it is the largest coverage win that does NOT depend
+   on the decoder decision above.
 2. Engine selector at `x86_native_call_at`, following psxport's `engine_select.h`
    (I001): total, refusing, one owner. The miss path at `x86_dispatch_one`
    becomes the interpreter route rather than an abort, which makes the first
