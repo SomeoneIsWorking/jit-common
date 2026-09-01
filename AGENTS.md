@@ -47,4 +47,8 @@ tracker exists to prevent.
 
 ## Status
 
-Design and tracker complete; no code yet. Current focus **S010**.
+Current focus **S011**. First measurement in: on `psxport`/Tomba! 2, the
+interpreter already runs the game at a median 6.10 ms/frame against a 16.67 ms
+budget (the substrate is 2.27), so desktop PSX needs no JIT to drop static code
+generation. `docs/project-state.md` S011 carries the numbers and what they do
+not cover. No `jit-common` code yet — S001 onward are still untouched.

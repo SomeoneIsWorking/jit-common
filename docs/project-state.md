@@ -40,7 +40,7 @@ S011 is the current focus.
 | S007 | `android-runtime` owns the title-neutral APK runtime, extracted out of Lucent | missing | — | G002, G004 |
 | S008 | Lucent is reduced to logging, configuration, HTTP control, and ZIP, with no Android or SDL surface | missing | S007 | G002 |
 | S010 | `psxport` has a reference MIPS interpreter available as a divergence-diagnosis engine | partial | — | G003 |
-| S011 | `psxport` executes guest MIPS code through a lightrec-based JIT | missing | S001, S002 | G001 |
+| S011 | `psxport` runs a shipping title with no statically generated code, inside the frame budget | partial | S001, S002 | G001 |
 | S012 | `psxport` runs its JIT in lockstep against the substrate Core and pauses at the first divergence | partial | S011 | G003 |
 | S013 | `psxport`'s static translator, generated corpus, and regeneration step are removed | missing | S011, S014 | G001 |
 | S014 | The PSX titles reach their existing conformance milestones through the JIT | missing | S011, S012 | G001, G003 |
@@ -146,7 +146,7 @@ What exists and works:
 - It is already **the oracle engine**: `Core::use_interp` routes
   `rec_super_call` / `rec_interp` / `rec_coro_run` / `stub_dispatch` to it
   (`dispatch.cpp`), and `guest_call.h` carries the same ternary at every guest
-  call site.
+  call site. (Both replaced by `Core::engine` in I001; see below.)
 - `runtime/recomp/sbs.cpp` already runs two Cores in lockstep with per-frame
   RAM+scratchpad diff, pause-at-first-divergence, and debug-server inspection.
 - `PSXPORT_SELFTEST=oracle` (`selftest.cpp`) boots the interpreter Core with a
@@ -158,8 +158,9 @@ What exists and works:
 That last point is the strongest in-tree argument for this migration: on this
 project the interpreter is already more correct than the static substrate.
 
-Ground truth on which substrate ships: `Core::use_interp` defaults to `0`
-(`core.h:146`), so the native port Core runs `rec_dispatch` → generated C. Every
+Ground truth on which substrate ships: `Core::engine` defaults to
+`Engine::Substrate` (`core.h:151`), so the native port Core runs `rec_dispatch`
+→ generated C. Every
 consuming title still generates and compiles its shards (`tekken3`, `crash`,
 `spyro`, `toystory2`, `crashbash`, and others reference the recomp pipeline in
 their `CMakeLists.txt`). `interp.cpp`'s header previously claimed the recompiler
@@ -179,21 +180,52 @@ a JIT. (1) There is no JIT to compare against — S011. (2) `interp.cpp` holds
 per-Core guest register tags in a process-global array (I002), which breaks any
 pairing where both Cores interpret. Neither blocks S011.
 
-### S011 — `psxport` lightrec JIT
+### S011 — `psxport` runs with no statically generated code
 
-Required capability: guest MIPS R3000 execution through lightrec, bound to
-`psxport`'s own memory map, GTE, and MMIO rather than Beetle's bus. lightrec is
-chosen over Beetle's dynarec because it is standalone, embeds with host-supplied
-memory callbacks, and has both x86-64 and ARM64 backends; PSX Android is a named
-goal, so host portability decides this. Beetle remains vendored as an interpreter
-oracle only.
+Required capability: a shipping PSX title executes guest MIPS with nothing
+generated at build time, holding the 60 Hz frame budget. **Not** "has a JIT" —
+USER 2026-09-01: *"I said JIT but what I meant is no static code generation and
+something performant so it doesn't have to be JIT"*. The engine is whichever
+rung of the ladder in `migration.md` §5.1 the measurement justifies.
 
-The seam already exists and is narrow: every guest call goes through
-`guest_call.h`'s `c->use_interp ? rec_interp(c, fn) : rec_dispatch(c, fn)`, and
-`dispatch.cpp` holds the same branch for the four entry points. Replacing that
-boolean with an execution-engine selector adds the JIT route in one place rather
-than threading a new path through the runtime — so this is far less invasive on
-`psxport` than the equivalent step will be elsewhere.
+Landed 2026-09-01:
+
+- `Core::engine` is a total, refusing selector (I001), so an engine that is
+  selected but never runs cannot look like a working run.
+- `PSXPORT_ENGINE=substrate|interpreter|jit` selects it for the real game, not
+  only inside the SBS/selftest harnesses, which is what made the measurement
+  below possible at all. It aborts by name on an unrecognised value; verified
+  against the built game (`PSXPORT_ENGINE=lightrec` → "names none of the 3
+  engines this build has").
+
+**MEASURED 2026-09-01 — the existing interpreter already clears the frame
+budget on this title and host.** `PSXPORT_SELFTEST=startgame` on Tomba2Engine
+(boot → mash Start → GAME stage → 600 field frames), headless, `NOPACE`,
+`NOAUDIO`, one x86-64 desktop, both engines PASSING the same assertion:
+
+| engine | whole run (wall) | steady-state field, 21 windows of 30 frames |
+|---|---|---|
+| `substrate` (statically recompiled C) | 5.32 s | median **2.27** ms/frame, p90 3.20, max 3.67 |
+| `interpreter` (`interp.cpp`) | 12.48 s | median **6.10** ms/frame, p90 7.77, max 10.47 |
+
+The interpreter is 2.35× the substrate's cost and spends **37% of a 16.67 ms
+frame**, worst window 63%. So on desktop PSX, dropping static recompilation
+does not require a JIT at all — the engine that is already in the tree, and is
+already *more* correct than the substrate (S010), is fast enough.
+
+Gaps: that reframes the remaining work. What is still open is not "write a JIT",
+it is:
+
+1. Whether that headroom survives the parts this measurement excludes: a real
+   present path, audio, and the heaviest scenes rather than a field walk.
+2. Whether it survives an ARM64 handheld/Android host, where the same work
+   costs several times more. This is the only place a JIT (lightrec — standalone,
+   host-supplied memory callbacks, x86-64 *and* ARM64 backends) is currently
+   justified, and it stays a measured decision, not a default.
+3. S013 — removing the translator and the generated corpus, which is what
+   actually delivers G001.
+
+Beetle remains vendored as a hardware backend and interpreter oracle only.
 
 ### S012 — `psxport` JIT lockstep divergence diff
 
