@@ -56,7 +56,7 @@ S011 is the current focus.
 | S040 | `x86port` exists as a platform framework, replacing `shared/recomp-x86` | missing | — | G002 |
 | S041 | `x86port` translates x86-32 to x86-64 hosts, including lazy-EFLAGS evaluation | missing | S001, S002, S040 | G001 |
 | S042 | `x86port` translates x86-32 to ARM64 hosts | missing | S041 | G004 |
-| S043 | `x86port` has a reference x86-32 interpreter as the authority on the semantics its translator must match | missing | S005, S040 | G003 |
+| S043 | `x86port` has a reference x86-32 interpreter as the authority on the semantics its translator must match | partial | S005, S040 | G003 |
 | S044 | `x86port` implements a DirectDraw guest graphics frontend lowering to `render-common` | missing | S006, S040 | G002 |
 | S045 | `x86port` implements a Direct3D 8 guest graphics frontend lowering to `render-common` | missing | S006, S040 | G002 |
 | S046 | `pc/lf2` reaches its existing conformance milestone through the JIT | missing | S041, S043, S044 | G001, G003 |
@@ -558,12 +558,57 @@ value), memory access with MOVZX/MOVSX/LEA at three widths, and
 DIV/SETcc/CMOVcc. Each program asserts what its bytes decode to before running
 them.
 
-Gap: x87, MMX and SSE semantics — x87 alone is ~5% of the corpus and the whole
-of the unmodelled remainder worth naming (FLD 25185, FSTP 21115, FMUL 12120);
-the REP string forms; and the five refused 3DNow! approximations once their
+**x87 landed 2026-09-01**, in `src/x86port/x87.{h,c}` (the FPU) and
+`src/x86port/x87_exec.{h,c}` (the instructions), taking semantic coverage from
+93.93% to **98.18% — 2,129,063 of 2,168,629 instructions**, measured by the
+same instrument.
+
+The stack is modelled as a stack: `ST(i)` is a POSITION under a rotating TOP,
+not register `i`, which is right for exactly as long as TOP is zero and then
+reads from the wrong place with no crash and no obviously wrong number. TOP is
+observable through FNSTSW bits 11–13, so it is explicit rather than normalised
+away by shuffling an array. The pop suffix is carried as a COUNT, because
+FCOMPP pops twice.
+
+**Rounding is the finding worth keeping.** x87 rounds ONCE, to the precision
+the control word selects; computing in extended and rounding afterwards is two
+roundings, and they disagree — measured against this host's FPU over 2,359,296
+operations, **27,930 (1.18%) differed**, none of them at PC=extended where
+there is no second rounding to do. So on an x86 host `x86p_x87_arith` loads the
+guest's control word into the real FPU and executes the real instruction. Two
+plainer defects fell out of the same sweep: precision control was narrowing via
+a `(float)` cast, which clamps the EXPONENT as well as the significand (results
+near 1e300 came back as infinity), and it ignored rounding control entirely.
+
+That makes the arithmetic sweep tautological on x86, which the suite states
+rather than reporting as parity: what it still checks is the routing — operand
+order, the reverse flag, which ST(i), whether the control word arrives — and
+one deliberate defect demonstrates it can fail. `x86p_x87_arith_portable`
+exposes the two-step path so the fidelity gap on a host with no x87 unit stays
+MEASURED (0.4% at PC=double/nearest, 3.8% at PC=double/up) rather than assumed
+small; that is the number the ARM64 host of S042 inherits, and closing it means
+an 80-bit softfloat.
+
+Two process notes, because both changed what got written:
+
+- **The first sweep had no power.** 196 cases per operation found nothing; the
+  widened one — 256 values including denormals, infinities and generated
+  full-mantissa values, crossed with six control words — found every defect
+  above. This is the same failure the flag oracle had, in a new place.
+- **The execution tests passed first try and were wrong to be trusted.**
+  Mutation testing found three uncovered claims the suite had comments about
+  but no cases for: FXCH hardcoded to ST(1) survived (every FXCH tested named
+  ST(1), where the index is indistinguishable), the FI forms reading their
+  operand as a float survived (no program used FIADD), and FLD ST(i) reading
+  after the push instead of before survived (every FLD took a memory operand).
+  All three now fail when reintroduced.
+
+Gap: MMX and SSE — MOVQ alone is 6,936 of the remaining 39,566 — the REP string
+forms, the x87 transcendentals (FSIN, FCOS and friends, refused by name rather
+than approximated), and the five refused 3DNow! approximations once their
 AMD-specified forms are in hand. Decode, engine selection, the flag model, the
-integer ALU, the conditions, the machine state and the execution loop are no
-longer among them.
+integer ALU, the conditions, the machine state, the execution loop and x87 are
+no longer among them.
 
 ### S044 — DirectDraw guest frontend
 
