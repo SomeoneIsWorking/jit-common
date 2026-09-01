@@ -331,7 +331,8 @@ rules some otherwise-obvious cores out.
 | `gcnport` | PPC Gekko/Broadway | **Dolphin** (Jit64 + JitArm64) | ✅ | ✅ |
 | `xenonport` | PPC Xenon + VMX128 | **Xenia** (x64 backend only) | ✅ | ❌ |
 | `x86port` | x86-32 | **asmjit** translator (ours) | ✅ | ✅ (two emitters) |
-| | | qemu-TCG / Unicorn | ✅ | ✅ (awkward embed) |
+| | | qemu-TCG / Unicorn (GPL-2.0) | ✅ | ✅ (awkward embed) |
+| | | FEX-Emu / Box86 (MIT) — CPU only, still needs our HLE | n/a (host is the CPU) | ✅ |
 
 Consequences, stated plainly:
 
@@ -347,14 +348,36 @@ Consequences, stated plainly:
   Xenia fork. Since effort is not a constraint, writing that ARM64 backend is the
   right long-term answer (and is upstreamable); until then, record the limitation
   rather than papering over it.
-- **`x86port` writes its own translator on asmjit** rather than embedding
-  qemu-TCG. Reasons that are about design, not effort: it integrates natively
-  with `jit-common`'s block cache and persistent cache; it is debuggable with our
-  own tooling and traceable by our own harness; `shared/recomp-x86` already holds
-  the x86-32 decode and semantics, so the work is retargeting emission rather
-  than deriving semantics; and a TCG embed would bring its own memory model,
-  its own cache, and its own threading assumptions that fight everything in L2.
-  Lazy-EFLAGS evaluation is the one genuinely hard part and is well-understood.
+- **`x86port`'s core is an OPEN QUESTION, and this row was written on a false
+  premise.** It claimed `shared/recomp-x86` already held the x86-32 decode and
+  semantics, so writing our own translator was "retargeting emission rather than
+  deriving semantics". **Measured false 2026-09-01**: recomp-x86 has no decoder
+  at all — its front end is Ghidra, consuming disassembled mnemonic TEXT, which
+  is why its failures read `mnemonic PFMUL`. The cheapest-looking reason for
+  writing our own does not exist, and everything downstream of it (S043's
+  interpreter as a required oracle) inherits that.
+
+  The reasons that survive are real but narrower: native integration with
+  `jit-common`'s caches, debuggability through our own harness, and a TCG embed
+  bringing its own memory model, cache and threading assumptions. qemu-TCG and
+  Unicorn are also GPL-2.0, which is a shipping problem this table never stated.
+
+  **Two things this row got structurally wrong, both worth carrying:**
+
+  - **On an x86-64 host an x86-32 guest needs NO core.** The host is the CPU.
+    The table lists x86port's host targets as though a core were required for
+    both, which silently doubled the scope. A core is needed for ARM64 only —
+    which is where Android is, so it is still needed, but the question is
+    "an ARM64 backend" and not "an x86 CPU".
+  - **The CPU was never the hard part of this port.** Running a 2005 Windows
+    game without Wine is a Win32 + D3D8 HLE problem (S044, S045), and that is
+    the piece nothing off-the-shelf supplies embeddably. FEX-Emu and Box86 are
+    NOT alternatives to it: they emulate the CPU for *Linux* x86 binaries and
+    are run underneath Wine, so they leave the actual work untouched. They are
+    candidates for the ARM64 CPU backend alone, under our own HLE.
+
+  Lazy-EFLAGS evaluation is the one genuinely hard part of writing our own and
+  is well-understood; `src/x86port/flags.c` now implements it, hardware-verified.
 
 ### Interpreters: required only where we wrote the translator
 
