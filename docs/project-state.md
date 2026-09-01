@@ -483,9 +483,37 @@ misspelled one, with a different reason for each. Mutation-tested: making the
 route fall through to the substrate fails 5 checks, and making resolution
 quietly fall back on an unlinked engine fails 9.
 
+**The flag model landed 2026-09-01** — `src/x86port/flags.{h,c}` — and it is
+the piece of this row where being wrong is quietest, so it got the strongest
+verification: the test executes each instruction on the host CPU with a
+controlled incoming EFLAGS and compares the real word. **2,187,776 comparisons,
+0 mismatches**, all six flags, exhaustive at byte width (256×256 operand pairs ×
+four incoming CF/AF combinations, for ADD SUB CMP AND OR XOR ADC SBB INC DEC SHL
+SHR SAR) plus deterministic boundary-crossed sweeps at 16 and 32 bits. On a
+non-x86 host it reports that no oracle ran rather than passing on the hermetic
+cases.
+
+The oracle found four defects that reading the manual had not: logic ops CLEAR
+AF and shifts SET it (the model preserved both); SHR's OF is `msb(a)` only at a
+count of 1 and 0 beyond; and a shift by zero writes no flags at all, which is
+the *instruction's* rule, so `x86p_flags_set` refuses to record one rather than
+growing a preserving branch for four flags with no correct value. It also
+exposed a hole in its own first version, which varied only the incoming CF and
+so reported "0 differ" on the logic ops' AF with no power to see otherwise —
+which is why the sweep now compares the ISA-undefined flags too.
+
+The model is seeded from `pc/xmen2`'s substrate (`x86rt.h` FK_*/FLAG_*) and
+keeps its lazy shape deliberately, so the two are comparable instruction by
+instruction. It departs from it in three stated places: AF exists at all, ADC
+and SBB compute eagerly (a carry-in is not expressible in the lazy triple, and
+modelling it wrongly once cost xmen2 issue #16), and shifts are split by
+direction rather than sharing one CF formula that works only because a caller
+pre-arranges its input.
+
 Gap: the base integer ISA, x87, MMX and SSE semantics; the execution loop
 itself; and the five refused 3DNow! approximations once their AMD-specified
-forms are in hand. Decode and engine selection are no longer among them.
+forms are in hand. Decode, engine selection and the flag model are no longer
+among them.
 
 ### S044 — DirectDraw guest frontend
 
