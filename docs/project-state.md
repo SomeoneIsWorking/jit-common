@@ -389,15 +389,14 @@ instance-owned; 85 hand-written call sites still name generated bodies by C
 symbol; and the framework, while it now exists (decode, 3DNow!, engine
 selection), does not yet execute anything.
 
-A prerequisite found while attempting the `pc/xmen2` wiring: **`shared/x86port`
-has no git remote, and the port cannot consume a shared repo without one.**
-`pc/xmen2` resolves shared checkouts through `tools/shared_dir.py` and
-provisions them in `bootstrap.py`'s `SHARED_REPOS` from a pinned URL and
-revision; `alchemy`, `recomp-x86`, `port-assets` and `android-port` all have
-one, while `x86port` and `jit-common` are local-only. Coupling the port to an
-unprovisionable checkout would break the fresh-clone launcher contract for every
-machine but this one. Publishing is outward-facing and so is the user's call;
-it blocks no framework work.
+A prerequisite found while attempting the `pc/xmen2` wiring, and **resolved the
+same day**: the port provisions shared checkouts from a pinned URL + revision in
+`bootstrap.py`'s `SHARED_REPOS`, so a repo with no remote could not be consumed
+without breaking the fresh-clone launcher contract everywhere but this machine.
+`shared/x86port` and `shared/jit-common` are now published alongside their
+siblings (`SomeoneIsWorking/x86port`, `SomeoneIsWorking/jit-common`, public).
+The wiring needs a `SharedRepo` entry pinned to an exact revision, never a
+branch.
 
 ### S041 — `x86port` x86-64 emission
 
