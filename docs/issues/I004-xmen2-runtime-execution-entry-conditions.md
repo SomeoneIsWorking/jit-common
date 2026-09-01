@@ -54,6 +54,15 @@ guess was code**. An interpreter never guesses: it decodes only what execution
 actually reaches, so this entire class of hole stops existing rather than being
 fixed.
 
+**Read this finding honestly.** It does not by itself argue for runtime
+execution: the static translator could implement those same twenty 3DNow!
+opcodes and close 90% of its own holes. What it argues is that the *decoder*
+work is small, wherever it lands — so the interpreter is cheap to reach a useful
+coverage level with, and the cost of S043 is much lower than "8,234 holes"
+implies. The reasons to migrate remain G001 (no build-time code generation), the
+307 MB regeneration cost, and the misdecoded-data class above, which only an
+interpreter removes structurally.
+
 ## Four entry conditions, and they are already met
 
 This project is better positioned for runtime execution than psxport was.
