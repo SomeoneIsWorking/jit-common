@@ -442,13 +442,26 @@ rather than approximated, since `1.0f/x` for PFRCP agrees to six digits and
 disagrees in the low mantissa bits. 427 checks pass; negative-tested by making
 PFRCP return `1.0f/x`, which fails three assertions across two tests.
 
-Gap: **the decoder is the open question and it is most of the remaining work.**
-`shared/recomp-x86` cannot seed it — corrected by reading it: its front end is
-Ghidra and it lifts disassembled mnemonic TEXT, which is why its failures read
-`mnemonic PFMUL`. It has semantics to seed from and no decode at all, and Ghidra
-can never be a player prerequisite. See I004 for the choice to be made. Beyond
-that: the base integer ISA, x87, MMX and SSE, and the five refused
-approximations once their AMD-specified forms are in hand.
+**The decoder question is settled, and by measurement.** `shared/recomp-x86`
+could not seed it — corrected by reading it: its front end is Ghidra and it
+lifts disassembled mnemonic TEXT, which is why its failures read `mnemonic
+PFMUL`. It has semantics to seed from and no decode at all, and Ghidra can never
+be a player prerequisite. x86port therefore embeds **Zydis v4.1.1** for decode
+only and keeps semantics its own — decode is mechanical and brings no memory
+model, threading, or cache assumptions to fight `jit-common`, which is exactly
+what disqualifies embedding a whole core.
+
+Validated over **2,168,629 real instructions** from `pc/xmen2`'s 20-module
+Ghidra export, whose records carry the raw bytes beside Ghidra's own reading:
+`0` failed to decode, `2,168,592` length agreements (99.9983%), and all 37
+disagreements the same 0x9B FWAIT-folding convention, where both readings are
+correct and the literal one is what an interpreter wants. The instrument is
+`tools/{corpus_extract.py, decode_diff.c}`; it refuses an empty corpus rather
+than reporting agreement, and does not special-case the FWAIT category.
+
+Gap: the base integer ISA, x87, MMX and SSE semantics; the execution loop
+itself; and the five refused 3DNow! approximations once their AMD-specified
+forms are in hand. Decode is no longer among them.
 
 ### S044 — DirectDraw guest frontend
 

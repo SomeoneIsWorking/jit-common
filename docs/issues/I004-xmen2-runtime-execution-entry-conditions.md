@@ -116,9 +116,19 @@ This project is better positioned for runtime execution than psxport was.
    `mnemonic PFMUL` rather than an opcode byte. Its per-instruction semantics
    are a real seed; its decode does not exist. And Ghidra is a maintainer-only
    tool that can never be a player prerequisite, so the interpreter needs its
-   own decoder. **That is the open decision**, and it is the bulk of S043:
-   embed a decode-only library (no memory-model or threading opinions to fight,
-   unlike embedding a whole core) or write one for the reached subset.
+   own decoder. **Settled 2026-09-01: Zydis v4.1.1, decode only**, pinned in
+   `shared/x86port/vendor/zydis` — a decode-only library brings no memory-model
+   or threading opinions to fight `jit-common`, which is what disqualifies
+   embedding a whole core.
+
+   Validated rather than argued, using an oracle this project already had and
+   had not noticed: the Ghidra export records the **raw bytes** of every
+   instruction beside Ghidra's own reading. Decoding all 2,168,629 of them
+   through the shipping `x86p_decode()` gives 0 failures and 99.9983% length
+   agreement, with all 37 disagreements the 0x9B FWAIT-folding convention (both
+   readings correct; the literal one is what an interpreter wants). It also
+   caught zydis 4.1 spelling PFRSQRT as "PFSQRT" and PFRCPIT1 as "PFCPIT1"
+   before that could become two opcodes the engine could not name.
 
    Started 2026-09-01: `shared/x86port` exists, with 3DNow! semantics as its
    first module — 19 opcodes implemented, the 5 approximation instructions
