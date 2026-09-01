@@ -16,6 +16,7 @@
 #include "block_cache.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 static int g_checks;
@@ -55,11 +56,33 @@ static int g_test_failed;
     }                                                                                                                  \
   } while (0)
 
-/* Host pointers are never dereferenced by the cache, so a distinguishable fake
-   is better than real code memory: it makes a wrong association visible as a
-   wrong number rather than as a crash. */
+/*
+ * A distinct, never-dereferenced host pointer per index.
+ *
+ * These are real addresses into a real array rather than integers cast to
+ * pointers. Casting was simpler and clang-tidy was right to reject it
+ * (performance-no-int-to-ptr): a synthesized address is not a pointer the
+ * compiler can reason about, and more to the point it is not what the cache
+ * stores in production, where every host value is a genuine address inside a
+ * JcCodeRegion. Taking real addresses keeps the test's values the same KIND of
+ * value the shipping path holds, and costs nothing.
+ *
+ * Distinctness is the property every assertion here rests on -- two indices
+ * sharing a pointer would make a stranded or mis-shifted entry compare equal to
+ * the right answer, and the suite would pass while the cache was broken. So an
+ * index past the array ABORTS rather than wrapping into an alias.
+ */
+static unsigned char g_host_space[8192];
+
 static void *fake_host(uint64_t guest) {
-  return (void *)(uintptr_t)(0x100000u + (guest * 4u));
+  if (guest >= sizeof g_host_space) {
+    printf("    FATAL: fake_host(%llu) is past the %zu-byte pool; two indices "
+           "would alias and every identity assertion below would go blind\n",
+           (unsigned long long)guest,
+           sizeof g_host_space);
+    abort();
+  }
+  return &g_host_space[guest];
 }
 
 static void test_insert_and_find(void) {
