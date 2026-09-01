@@ -140,6 +140,36 @@ This project is better positioned for runtime execution than psxport was.
    becomes the interpreter route rather than an abort, which makes the first
    engine incremental — the translated corpus keeps running while the
    interpreter takes only what it can.
+
+   **The selector itself landed 2026-09-01** as `shared/x86port`'s
+   `src/x86port/engine.{h,c}` (74 checks). It needed more than a copy of
+   psxport's: there, all three arms are compiled into every build, so selection
+   only has to catch a misspelling. Here they are not — the substrate is
+   generated C living in the *title*, and the interpreter does not exist yet —
+   and an engine spelled correctly but never linked runs something else just as
+   silently as a misspelled one. So `x86p_engine_resolve()` takes an
+   availability mask from the consumer and refuses either way, with distinct
+   reasons, since a typo is fixed on a command line and a missing arm is fixed
+   by building it.
+
+   **Wiring it into `pc/xmen2` is deliberately deferred, for two reasons found
+   while doing it.**
+
+   - *It would be dead code today.* Routing the `x86_dispatch_one` miss to an
+     interpreter that does not exist adds an arm nothing can select. The seam is
+     worth landing when there is something on the other side of it, so step 2's
+     xmen2 half now follows the interpreter rather than preceding it.
+   - *`shared/x86port` has no remote, and `pc/xmen2` cannot consume a shared repo
+     without one.* The port resolves shared repos through
+     `tools/shared_dir.py` — `$X86PORT_DIR`, `$SHARED_DIR/x86port`, then
+     `vendor/shared/x86port` — and `bootstrap.py`'s `SHARED_REPOS` provisions
+     each from a pinned URL + revision. `alchemy`, `recomp-x86`, `port-assets`
+     and `android-port` all have one; `x86port` and `jit-common` are local-only.
+     Coupling the port to an unpublishable checkout would break the fresh-clone
+     launcher contract for everyone but this machine, which is a worse defect
+     than the delay. **Publishing `shared/x86port` is therefore a prerequisite
+     for step 2's xmen2 half** — it is the user's call, being outward-facing,
+     and it is not needed for step 1.
 3. Measure against the frame budget (§5.1) before considering S041/S042.
 4. The 85 direct symbol calls, then per-module removal of the emitted corpus.
 5. `pc/xmen2/docs/strategy.md` argues for static recompilation and is rewritten

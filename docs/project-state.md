@@ -386,7 +386,18 @@ table (the defect psxport must fix first, I003).
 Gap: guest memory is a single process-wide arena, so two engines cannot run in
 one process against independent memory even though `CPU` registers are
 instance-owned; 85 hand-written call sites still name generated bodies by C
-symbol; and the framework does not exist yet.
+symbol; and the framework, while it now exists (decode, 3DNow!, engine
+selection), does not yet execute anything.
+
+A prerequisite found while attempting the `pc/xmen2` wiring: **`shared/x86port`
+has no git remote, and the port cannot consume a shared repo without one.**
+`pc/xmen2` resolves shared checkouts through `tools/shared_dir.py` and
+provisions them in `bootstrap.py`'s `SHARED_REPOS` from a pinned URL and
+revision; `alchemy`, `recomp-x86`, `port-assets` and `android-port` all have
+one, while `x86port` and `jit-common` are local-only. Coupling the port to an
+unprovisionable checkout would break the fresh-clone launcher contract for every
+machine but this one. Publishing is outward-facing and so is the user's call;
+it blocks no framework work.
 
 ### S041 — `x86port` x86-64 emission
 
@@ -459,9 +470,22 @@ correct and the literal one is what an interpreter wants. The instrument is
 `tools/{corpus_extract.py, decode_diff.c}`; it refuses an empty corpus rather
 than reporting agreement, and does not special-case the FWAIT category.
 
+**The engine selector landed 2026-09-01** — `src/x86port/engine.{h,c}`, 74
+checks — so "which engine ran?" is answerable before there is a second engine to
+answer it about. It follows psxport's `engine_select.h` (I001) for the enum and
+the total, refusing route, and shares its vocabulary deliberately: the
+frameworks are separate, but a report from one has to be readable against the
+other. It needed more than a copy, because psxport compiles all three arms into
+every build while here the substrate is generated C living in the *title* and
+the interpreter is unwritten — so selection takes an availability mask from the
+consumer and refuses a correctly-spelled-but-unlinked engine as loudly as a
+misspelled one, with a different reason for each. Mutation-tested: making the
+route fall through to the substrate fails 5 checks, and making resolution
+quietly fall back on an unlinked engine fails 9.
+
 Gap: the base integer ISA, x87, MMX and SSE semantics; the execution loop
 itself; and the five refused 3DNow! approximations once their AMD-specified
-forms are in hand. Decode is no longer among them.
+forms are in hand. Decode and engine selection are no longer among them.
 
 ### S044 — DirectDraw guest frontend
 
