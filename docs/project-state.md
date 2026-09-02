@@ -54,7 +54,7 @@ S011 is the current focus.
 | S032 | `gcnport` can lockstep its JIT against another engine and pause at the first divergence | missing | S005, S030 | G003 |
 | S033 | `sunbright` reaches its file-select conformance milestone through the JIT, with its static translator removed | missing | S031, S032 | G001, G003 |
 | S040 | `x86port` exists as a platform framework, replacing `shared/recomp-x86` | missing | — | G002 |
-| S041 | `x86port` translates x86-32 to x86-64 hosts, including lazy-EFLAGS evaluation | missing | S001, S002, S040 | G001 |
+| S041 | `x86port` translates x86-32 to x86-64 hosts, including lazy-EFLAGS evaluation | partial | S001, S002, S040 | G001 |
 | S042 | `x86port` translates x86-32 to ARM64 hosts | missing | S041 | G004 |
 | S043 | `x86port` has a reference x86-32 interpreter as the authority on the semantics its translator must match | partial | S005, S040 | G003 |
 | S044 | `x86port` implements a DirectDraw guest graphics frontend lowering to `render-common` | missing | S006, S040 | G002 |
@@ -468,14 +468,45 @@ branch.
 
 Required capability: x86-32 guest code executes fast enough on an x86-64 host.
 
-**Do not start this before measuring** (`migration.md` §5.1). `pc/lf2` is a 1999
-2D fighting game and `pc/xmen2` a 2005 action-RPG; a threaded interpreter may hold
-frame rate for both, in which case this row and S042 are unnecessary work. If
-measurement says a translator is needed, the design is an asmjit-based one with
-guest registers in a context struct and lazy-EFLAGS evaluation — chosen over
-embedding qemu-TCG because TCG brings its own memory model, cache, and threading
-assumptions that fight `jit-common`, whereas an owned translator integrates with
-the shared caches and is traceable by the project's own harness.
+**Verified as of 2026-09-02: a first backend translates and executes, and its
+output matches the interpreter on every program tested.**
+
+- `src/x86port/emit_x64.{h,c}` — the host encoder. Verified by DECODING its own
+  output with Zydis rather than against hand-written byte strings: 6,513 checks
+  over an exhaustive 16-register sweep with displacements at the encoding's
+  decision boundaries, 961 instructions through the oracle. Six mutations
+  covering the RSP/R12 SIB trap, the RBP/R13 disp8 trap, REX.R/REX.B swapping,
+  the ALU opcode arithmetic, byte-store width and the disp8 boundary were all
+  killed.
+- `src/x86port/jit_x64.{h,c}` — guest block to host code. Data movement is
+  inlined; arithmetic CALLS `x86p_alu`, the same function the interpreter calls,
+  so the two engines are identical by construction rather than by agreement.
+  That is what keeps the differential from being circular: an inlined
+  reimplementation of the lazy-flag derivation would be a second authority on
+  S043's semantics.
+- `tests/test_jit_x64.c` — the differential. 400 generated programs, 25,600
+  guest instructions translated and executed, whole-machine comparison against
+  the interpreter (eight registers, EIP, the raw lazy tuple including
+  `carry_in`, and all six derived flags). Nine mutations killed, including
+  CMP and TEST storing a result, swapped ALU operands, a caller-saved CPU
+  register, a misaligned stack at the helper call, and an unscaled register
+  offset.
+
+Gap: the translatable set is 32-bit register/immediate MOV
+and ALU (including ADC and SBB, which exercise `carry_in`) plus NOP. Not yet
+emitted, each ending the block by name: memory operands; 8- and 16-bit widths
+with their partial-write rules; shifts and rotates; branches, calls and returns;
+the stack; x87. Blocks do not chain and are not yet wired to `jit-common`'s
+code memory or block cache — `x86p_jit_translate` takes a caller-owned buffer
+and deliberately never publishes it, so that wiring changes the allocation and
+nothing else.
+
+**The measurement caveat still stands** (`migration.md` §5.1): S011 measured the
+PSX interpreter comfortably inside frame budget, and no equivalent guest/host
+split has been measured for `pc/lf2` or `pc/xmen2`. This backend does not assert
+that a JIT is needed for either title; it establishes the path and the
+verification shape. Escalation past the current set should follow a measurement,
+not this row's existence.
 
 ### S042 — `x86port` ARM64 emission
 
