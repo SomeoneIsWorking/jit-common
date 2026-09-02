@@ -469,9 +469,14 @@ can be compared. Making it decline immediately found two defects the miss path
 had carried since it landed and that no selftest could reach: the engine pushed
 a return address its caller had already pushed, and its call-out dropped a
 recompiled body's tail jump. Four hot bodies taken now run 60 frames clean.
-There is still **no frame-budget number**: taking everything diverges during
-`msdia80.dll`'s CRT initialisation, and eighteen interpreted instructions is not
-a measurement. I004 step 3 carries the detail.
+Bisecting `all` then found the **segment bases were never bridged** — FS is
+per-thread, so it sat outside both CPU structs, and every /GS prologue's
+`mov eax, fs:[0]` read guest address 0 and faulted as a null dereference. With
+that fixed, **3243 taken bodies run 60 frames clean: 794 calls, 6091 guest
+instructions, 289 handed back.** There is still **no frame-budget number**:
+taking the whole exe now reaches the frame limit and dies on setjmp/longjmp
+across the engine boundary, which the engine has to own rather than patch.
+I004 step 3 carries the detail.
 
 A prerequisite found while attempting the `pc/xmen2` wiring, and **resolved the
 same day**: the port provisions shared checkouts from a pinned URL + revision in

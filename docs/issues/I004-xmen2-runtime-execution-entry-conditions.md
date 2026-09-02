@@ -247,14 +247,38 @@ This project is better positioned for runtime execution than psxport was.
    **4 calls entered, 18 guest instructions executed, 2 handed back**, run
    clean, and the default substrate run unchanged.
 
-   **THERE IS STILL NO FRAME-BUDGET NUMBER, and the reason is a real
-   divergence.** `X2_ENGINE_TAKE=all` does not survive startup: it diverges
-   inside `msdia80.dll`'s CRT initialisation, at a RET in `__mtinit` that pops
-   0x00000a28, and then faults at 0x3. Eighteen instructions is not a
-   measurement of anything, and `all` is the configuration that would produce
-   one, so §5.1 cannot be applied until that divergence is understood. It is
-   the next thing to chase, and it is now a bounded, reproducible question
-   rather than one about whether the engine works at all.
+   **Bisecting `all` (2026-09-02, `pc/xmen2` fa194bd) found the segment
+   bases were never bridged.** FS is per-THREAD, so it lives in `g_fsbase` on
+   the substrate side and in the CPU on x86port's, and the state bridge stepped
+   over it. `mov eax, fs:[0]` is the opening of every /GS-compiled function's
+   SEH prologue — seven bytes into `FUN_004874b0`, the first function taken —
+   and with a zero base it reads guest address 0. It faulted at 0x3, which
+   looks exactly like a null dereference and says nothing about segments.
+
+   Two things were needed to find that and are worth keeping. The take set
+   grew **range and module forms**, because `all` is either clean or broken
+   somewhere and halving the set is the only way to turn that into an address;
+   four bisect steps reached one function. And the engine can now say **where
+   it is** on any stop path — a host backtrace ends at `x2_engine_call`, so the
+   first run reported a SIGSEGV whose only named body was an import thunk that
+   had nothing to do with it.
+
+   **Measured, 60 frames, offscreen, 3243 bodies taken: 794 calls entered,
+   6091 guest instructions, 289 handed back, deepest nesting 2**, run clean,
+   default substrate run unchanged. The take report's `routed` matches the
+   engine's own call count exactly, which it did not before: counting the
+   dispatcher's "route this?" and the engine's "interpret into this?" as one
+   number reported 1149 dispatches for 794 calls.
+
+   **THERE IS STILL NO FRAME-BUDGET NUMBER, and the next blocker is now named.**
+   Taking the whole `XMen2.exe` module reaches the frame limit and then dies on
+   **setjmp/longjmp across the engine boundary**: the substrate inlines
+   `setjmp` into generated code so a host frame exists to unwind to, and
+   interpreted code reaches `_setjmp3` through the import stub instead, which
+   records a `jmp_buf` with no host frame behind it. `longjmp` then has nothing
+   to resume. That is a boundary the engine has to own — a guest `setjmp` is a
+   guest control transfer, and interpreted code can restore guest ESP/EIP
+   itself — not a bug to patch, and it is the next piece of work.
 
 4. The 85 direct symbol calls, then per-module removal of the emitted corpus.
 5. `pc/xmen2/docs/strategy.md` argues for static recompilation and is rewritten
