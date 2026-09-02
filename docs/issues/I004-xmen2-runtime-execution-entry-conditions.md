@@ -213,7 +213,49 @@ This project is better positioned for runtime execution than psxport was.
    function can be run both ways and compared — the differential of S041,
    applied to real game code.
 
-3. Measure against the frame budget (§5.1) before considering S041/S042.
+3. **The take set, and the frame budget (§5.1).**
+
+   **LANDED 2026-09-02** (`pc/xmen2` 4bcfafb). `X2_ENGINE_TAKE` names entry
+   points the substrate must hand over even though it HAS them — a list, an
+   `@file`, or `all`. Host code is never taken in any mode: an import thunk
+   and a native override are C functions with no guest bytes at their address.
+   A named address that is one of those, or that has no body at all, stops the
+   run rather than being dropped, because a take set that quietly loses half
+   its entries reports a measurement of something else.
+
+   **Taking bodies found two defects the miss path had carried since it
+   landed, and neither was reachable without it.** This is the argument for
+   building the take set before chasing coverage: the seam had a selftest, a
+   report with both halves of every ratio, and two bugs that only a function
+   the GAME calls could expose.
+
+   - **The engine pushed a return address.** Every caller has already pushed
+     the word the callee's RET pops — `x86_guest_call_args` writes 0xDEADBEEF
+     there explicitly — so the guest returned to the engine's trampoline
+     correctly, the engine's own stack check passed because its frame
+     balanced, and the caller's return address was left behind. Four bytes of
+     guest stack per taken call, caught by `x86_guest_call` on the first one.
+     The engine now leaves on the caller's own return address with the stack
+     unwound past it; the address alone is not enough, because it would also
+     match a CALL to it from deeper in.
+   - **The call-out dropped tail jumps.** It used `x86_native_call_at`, which
+     does not drain `C->tail_target`; a recompiled body ending in a tail JUMP
+     reports it by leaving that set and returning, and only `x86_dispatch`'s
+     loop drains it. It calls `x86_dispatch` now.
+
+   Measured, X-Men Legends II, 60 frames, offscreen: four hot bodies taken,
+   **4 calls entered, 18 guest instructions executed, 2 handed back**, run
+   clean, and the default substrate run unchanged.
+
+   **THERE IS STILL NO FRAME-BUDGET NUMBER, and the reason is a real
+   divergence.** `X2_ENGINE_TAKE=all` does not survive startup: it diverges
+   inside `msdia80.dll`'s CRT initialisation, at a RET in `__mtinit` that pops
+   0x00000a28, and then faults at 0x3. Eighteen instructions is not a
+   measurement of anything, and `all` is the configuration that would produce
+   one, so §5.1 cannot be applied until that divergence is understood. It is
+   the next thing to chase, and it is now a bounded, reproducible question
+   rather than one about whether the engine works at all.
+
 4. The 85 direct symbol calls, then per-module removal of the emitted corpus.
 5. `pc/xmen2/docs/strategy.md` argues for static recompilation and is rewritten
-   in the change that lands step 3's result, not before.
+   in the change that lands the frame-budget number above, not before.
