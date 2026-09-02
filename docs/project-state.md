@@ -474,7 +474,9 @@ output matches the interpreter on every program tested.**
 - `src/x86port/emit_x64.{h,c}` — the host encoder. Verified by DECODING its own
   output with Zydis rather than against hand-written byte strings: 6,513 checks
   over an exhaustive 16-register sweep with displacements at the encoding's
-  decision boundaries, 961 instructions through the oracle. Six mutations
+  decision boundaries, and all sixteen CMOVcc conditions decoded individually
+  (the condition number is added to a base opcode, so an off-by-one emits a
+  different, perfectly valid conditional move). Six mutations
   covering the RSP/R12 SIB trap, the RBP/R13 disp8 trap, REX.R/REX.B swapping,
   the ALU opcode arithmetic, byte-store width and the disp8 boundary were all
   killed.
@@ -484,19 +486,38 @@ output matches the interpreter on every program tested.**
   That is what keeps the differential from being circular: an inlined
   reimplementation of the lazy-flag derivation would be a second authority on
   S043's semantics.
-- `tests/test_jit_x64.c` — the differential. 400 generated programs, 25,600
+- Relative branches (`JMP`/`Jcc`, rel8 and rel32) end a block, which is what
+  makes it a basic block. Emitted WITHOUT a forward jump: `x86p_cond` — again
+  the interpreter's own evaluator — then both candidate addresses materialised
+  and `CMOVcc` selecting between them. No fixup list, so no fixup list to
+  forget to apply. Indirect branches stay excluded on purpose: their target is
+  not known until the block runs, so they need the block cache rather than a
+  constant folded in at translation time.
+- `tests/test_jit_x64.c` — the differential. 1,500 generated programs, 17,666
   guest instructions translated and executed, whole-machine comparison against
   the interpreter (eight registers, EIP, the raw lazy tuple including
-  `carry_in`, and all six derived flags). Nine mutations killed, including
-  CMP and TEST storing a result, swapped ALU operands, a caller-saved CPU
-  register, a misaligned stack at the helper call, and an unscaled register
-  offset.
+  `carry_in`, and all six derived flags), plus an independent re-walk verifying
+  `guest_len`. The suite reports how many blocks ended in a branch (1,320 of
+  1,500) and REFUSES if that is zero, so a generator that stopped producing
+  branches cannot keep claiming that coverage.
+- Fifteen mutations killed across both files, including CMP and TEST storing a
+  result, swapped ALU operands, a caller-saved CPU register, a misaligned stack
+  at the helper call, an unscaled register offset, an inverted CMOV condition,
+  a branch target taken relative to the wrong instruction, and a JMP going to
+  its fall-through.
+
+  One mutation SURVIVED before being fixed and is worth recording: setting
+  `guest_len` from the branch target instead of the fall-through passed every
+  state comparison, because nothing read that field. It is the field range
+  invalidation uses to decide whether a write to guest memory stales a block,
+  so the cache would have been unable to invalidate correctly while every test
+  stayed green. The independent span re-walk now covers it.
 
 Gap: the translatable set is 32-bit register/immediate MOV
-and ALU (including ADC and SBB, which exercise `carry_in`) plus NOP. Not yet
-emitted, each ending the block by name: memory operands; 8- and 16-bit widths
-with their partial-write rules; shifts and rotates; branches, calls and returns;
-the stack; x87. Blocks do not chain and are not yet wired to `jit-common`'s
+and ALU (including ADC and SBB, which exercise `carry_in`), NOP, and
+PC-relative JMP/Jcc. Not yet emitted, each ending the block by name: memory
+operands; 8- and 16-bit widths with their partial-write rules; shifts and
+rotates; indirect branches; calls and returns; the stack; x87. Blocks do not chain and are not yet wired to `jit-common`'s
 code memory or block cache — `x86p_jit_translate` takes a caller-owned buffer
 and deliberately never publishes it, so that wiring changes the allocation and
 nothing else.
