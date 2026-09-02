@@ -522,6 +522,23 @@ code memory or block cache — `x86p_jit_translate` takes a caller-owned buffer
 and deliberately never publishes it, so that wiring changes the allocation and
 nothing else.
 
+**COVERAGE ON REAL GAME CODE: 0.49%** (`tools/jit_coverage.c`, 2026-09-02).
+Over X-Men Legends II's full Ghidra export — 58,248 functions, 2,168,666
+instructions — 9,210 functions yield a block and 10,638 instructions translate,
+at a mean block length of 1.16. The differential runs on every one of those
+blocks against the interpreter: 0 divergences, so correctness on real code
+holds; it is coverage that does not.
+
+The ranked stopper list is the work queue, and it is not what the synthetic
+tests suggested: PUSH 24,302 (function prologues), MOV 21,099 (memory
+operands), CALL 3,773, LEA 1,679, indirect JMP 1,435, FLD 1,053, CMP 514,
+RET 493. Real code opens with a prologue and addresses memory; register-only
+arithmetic is the tail. Speed work on that shape — `jit_bench` reports 0.97
+ns/insn, 1.45x a like-for-like static-recomp baseline — is real but measured on
+a kernel now known to be unrepresentative, and 1.45x must not be quoted as a
+whole-game figure. Coverage is STATIC and unweighted by execution frequency; a
+profile-weighted number needs the game running.
+
 **The measurement caveat still stands** (`migration.md` §5.1): S011 measured the
 PSX interpreter comfortably inside frame budget, and no equivalent guest/host
 split has been measured for `pc/lf2` or `pc/xmen2`. This backend does not assert
