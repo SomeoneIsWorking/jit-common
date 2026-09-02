@@ -270,15 +270,50 @@ This project is better positioned for runtime execution than psxport was.
    dispatcher's "route this?" and the engine's "interpret into this?" as one
    number reported 1149 dispatches for 794 calls.
 
-   **THERE IS STILL NO FRAME-BUDGET NUMBER, and the next blocker is now named.**
-   Taking the whole `XMen2.exe` module reaches the frame limit and then dies on
-   **setjmp/longjmp across the engine boundary**: the substrate inlines
-   `setjmp` into generated code so a host frame exists to unwind to, and
-   interpreted code reaches `_setjmp3` through the import stub instead, which
-   records a `jmp_buf` with no host frame behind it. `longjmp` then has nothing
-   to resume. That is a boundary the engine has to own — a guest `setjmp` is a
-   guest control transfer, and interpreted code can restore guest ESP/EIP
-   itself — not a bug to patch, and it is the next piece of work.
+   **The setjmp boundary is owned, and THE FRAME BUDGET IS MEASURED**
+   (2026-09-02, `pc/xmen2` 3b45f5e). The engine's run loop is a live host
+   frame, so it takes the guest's `setjmp` itself rather than letting the
+   import stub record a `jmp_buf` with no frame behind it — same table, same
+   `x86_setjmp_buf`/`x86_setjmp_done` pair, same reclaim rules. A guest setjmp
+   is a guest control transfer: the register file, ESP included, is restored
+   from the snapshot, so the resumed guest has the stack it had at the setjmp
+   and not the deeper one it unwound from. The engine's nesting count comes
+   back with it, because every engine frame between the jump and the landing
+   died with the host frames they lived in.
+
+   Measured, X-Men Legends II, offscreen, unbounded, whole `XMen2.exe` taken:
+   **161,742,175 guest instructions over 50,430 engine calls**, 1,243,573
+   hand-backs, deepest nesting 4, 69 setjmps taken and 23 longjmps resumed, to
+   600 frames.
+
+   | frames | substrate | engine |
+   |---|---|---|
+   | 60 | 2.46 s | 30.40 s |
+   | 300 | 8.20 s | 33.68 s |
+   | 600 | 8.43 s | 36.95 s |
+
+   Steady state from the 300→600 window: **substrate 0.77 ms/frame, engine
+   10.9 ms/frame — ~14× slower, and inside the 16.67 ms budget.** This is the
+   x86 analogue of psxport's 6.10 ms figure (S011), and it says the same
+   thing: an interpreter alone is enough to drop static code generation on the
+   desktop, and the JIT is an optimisation rather than a prerequisite.
+
+   **Read it with its limits.** Offscreen driver, the attract loop rather than
+   gameplay, and only `XMen2.exe` taken — the Alchemy DLLs are still on the
+   substrate, so this is not yet the whole game interpreted. It is a bound on
+   the exe's share, not a final number.
+
+   **One defect remains open, and it is named rather than hidden.** With the
+   whole module taken the run prints every shutdown report and then dies in the
+   host allocator (`sysmalloc: assertion failed`, exit 134). What is known:
+   either half of the module taken alone is clean *and takes no setjmp at all*,
+   so it is the setjmp path; a heap probe after all 23 resumes and after the
+   last engine call is clean, so the corruption only becomes visible at
+   teardown. The suspicion to test next is that a longjmp unwinds host frames
+   that hold host-side state — a D3D8 buffer lock is the obvious candidate,
+   the run reports 8,581 of them — leaving a stale pointer that a later unlock
+   writes through. The default substrate run and the engine with no take set
+   both still exit 0.
 
 4. The 85 direct symbol calls, then per-module removal of the emitted corpus.
 5. `pc/xmen2/docs/strategy.md` argues for static recompilation and is rewritten

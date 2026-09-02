@@ -473,10 +473,25 @@ Bisecting `all` then found the **segment bases were never bridged** — FS is
 per-thread, so it sat outside both CPU structs, and every /GS prologue's
 `mov eax, fs:[0]` read guest address 0 and faulted as a null dereference. With
 that fixed, **3243 taken bodies run 60 frames clean: 794 calls, 6091 guest
-instructions, 289 handed back.** There is still **no frame-budget number**:
-taking the whole exe now reaches the frame limit and dies on setjmp/longjmp
-across the engine boundary, which the engine has to own rather than patch.
-I004 step 3 carries the detail.
+instructions, 289 handed back.**
+
+**The frame budget is measured (2026-09-02, `pc/xmen2` 3b45f5e).** Taking the
+whole exe needed the engine to own the guest's `setjmp`: its run loop is a live
+host frame, so it takes the host setjmp itself rather than letting the import
+stub record a `jmp_buf` with nothing behind it. With that, **161,742,175 guest
+instructions over 50,430 engine calls** run to 600 frames — 69 setjmps taken,
+23 longjmps resumed, deepest nesting 4. Steady state over the 300→600 window,
+offscreen and unbounded: **substrate 0.77 ms/frame, engine 10.9 ms/frame,
+~14× slower and inside the 16.67 ms budget.** That is the x86 analogue of
+S011's 6.10 ms on psxport, and it carries the same conclusion: on the desktop
+the interpreter alone is enough to drop static code generation.
+
+Its limits are part of the measurement: offscreen driver, the attract loop
+rather than gameplay, and only `XMen2.exe` taken with the Alchemy DLLs still on
+the substrate. And one defect is open — with the whole module taken the run
+prints every report and then dies in the host allocator at teardown
+(`sysmalloc: assertion failed`). It is the setjmp path (either half taken alone
+is clean and takes no setjmp), and I004 step 3 carries what is known.
 
 A prerequisite found while attempting the `pc/xmen2` wiring, and **resolved the
 same day**: the port provisions shared checkouts from a pinned URL + revision in
