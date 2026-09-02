@@ -451,9 +451,16 @@ table (the defect psxport must fix first, I003).
 
 Gap: guest memory is a single process-wide arena, so two engines cannot run in
 one process against independent memory even though `CPU` registers are
-instance-owned; 85 hand-written call sites still name generated bodies by C
-symbol; and the framework, while it now exists (decode, 3DNow!, engine
-selection), does not yet execute anything.
+instance-owned; and 85 hand-written call sites still name generated bodies by
+C symbol.
+
+**The framework now executes inside `pc/xmen2` (2026-09-02, 39b1990).** The
+port consumes `x86port` and `jit-common` as pinned shared repos, selects an
+engine with `X2_ENGINE`, and routes `x86_dispatch_one`'s "no body here" to the
+interpreter. It is verified by a selftest that runs a real guest program
+through the real entry point before the game starts, because the seam is a
+MISS and a 60-frame run reaches none of them — see I004 for what the wiring
+found, and what a measurement still needs.
 
 A prerequisite found while attempting the `pc/xmen2` wiring, and **resolved the
 same day**: the port provisions shared checkouts from a pinned URL + revision in
