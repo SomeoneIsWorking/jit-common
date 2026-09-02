@@ -513,31 +513,53 @@ output matches the interpreter on every program tested.**
   so the cache would have been unable to invalidate correctly while every test
   stayed green. The independent span re-walk now covers it.
 
-Gap: the translatable set is 32-bit register/immediate MOV
-and ALU (including ADC and SBB, which exercise `carry_in`), NOP, and
-PC-relative JMP/Jcc. Not yet emitted, each ending the block by name: memory
-operands; 8- and 16-bit widths with their partial-write rules; shifts and
-rotates; indirect branches; calls and returns; the stack; x87. Blocks do not chain and are not yet wired to `jit-common`'s
-code memory or block cache — `x86p_jit_translate` takes a caller-owned buffer
-and deliberately never publishes it, so that wiring changes the allocation and
-nothing else.
+- `src/x86port/jit_engine.{h,c}` — the dispatch loop, which is what makes the
+  translator an ENGINE: look up, translate on a miss, publish, enter, and step
+  the interpreter for anything the backend refuses. It is the first caller
+  `jit-common`'s code region and block cache have had. The interpreter is the
+  FALLBACK, not a second engine, so coverage is a performance property rather
+  than a correctness one — which is what lets this proceed one emitter at a
+  time. `tests/test_jit_engine.c` runs whole programs against the interpreter:
+  loops, cache hits on re-entry, the fallback, arena exhaustion and flush,
+  invalidation of self-modifying code, a guest memory fault, and the same run
+  forced through DUAL MAPPING — the mechanism Android selects and a Linux box
+  never does. That test says loudly that it tested nothing if the host cannot
+  provide dual mapping; it does not pass.
 
-**COVERAGE ON REAL GAME CODE: 0.49%** (`tools/jit_coverage.c`, 2026-09-02).
+  Eight of nine engine mutations killed. The survivor — publishing fewer bytes
+  than were written — is an ARM64 instruction-cache defect and genuinely
+  equivalent code on x86-64; it is recorded as untested rather than counted.
+  Three of the killed ones were real defects that every state comparison
+  passed: the block cache holding the WRITE address (identical to the exec
+  address on this host), a guest memory fault reported as budget exhaustion
+  (nothing compared the stopping REASON), and deleting the fast mid-block
+  fallback (correct, and quietly quadratic in any hot loop).
+
+Gap: the translatable set is 32-bit MOV and ALU with a MEMORY OPERAND on either
+side, PUSH/POP, LEA, direct CALL and RET, NOP, and PC-relative JMP/Jcc. Not yet
+emitted, each ending the block by name: 8- and 16-bit widths with their
+partial-write rules; shifts and rotates; INC/DEC; indirect branches and indirect
+calls; x87; PUSH imm8, whose sign-extension rule lives in the interpreter and is
+refused rather than reimplemented here. Blocks do not chain, and there is no
+persistent translation cache across runs.
+
+**COVERAGE ON REAL GAME CODE: 10.27%** (`tools/jit_coverage.c`, 2026-09-02).
 Over X-Men Legends II's full Ghidra export — 58,248 functions, 2,168,666
-instructions — 9,210 functions yield a block and 10,638 instructions translate,
-at a mean block length of 1.16. The differential runs on every one of those
-blocks against the interpreter: 0 divergences, so correctness on real code
-holds; it is coverage that does not.
+instructions — 49,675 functions (85.3%) yield a block and 222,731 instructions
+translate, at a mean block length of 4.48. The differential runs on every one of
+those blocks against the interpreter: 0 divergences.
 
-The ranked stopper list is the work queue, and it is not what the synthetic
-tests suggested: PUSH 24,302 (function prologues), MOV 21,099 (memory
-operands), CALL 3,773, LEA 1,679, indirect JMP 1,435, FLD 1,053, CMP 514,
-RET 493. Real code opens with a prologue and addresses memory; register-only
-arithmetic is the tail. Speed work on that shape — `jit_bench` reports 0.97
-ns/insn, 1.45x a like-for-like static-recomp baseline — is real but measured on
-a kernel now known to be unrepresentative, and 1.45x must not be quoted as a
-whole-game figure. Coverage is STATIC and unweighted by execution frequency; a
-profile-weighted number needs the game running.
+The ranked stopper list is the work queue: indirect CALL 6,997, PUSH 5,351
+(the imm8 form), MOV 4,030 (widths below 32 bits), FLD 1,924, indirect JMP
+1,832, DEC 460, TEST 439. The head has changed shape: what remains is
+dominated by indirect control flow, which needs the block cache to resolve a
+target at run time rather than another emitter, and by x87.
+
+Speed: `jit_bench` reports 0.97 ns/insn, 1.44x a like-for-like
+static-recompilation baseline and 145x the interpreter. That kernel is
+register-only and now known to be unrepresentative of real code, so 1.44x must
+not be quoted as a whole-game figure. Coverage is STATIC and unweighted by
+execution frequency; a profile-weighted number needs the game running.
 
 **The measurement caveat still stands** (`migration.md` §5.1): S011 measured the
 PSX interpreter comfortably inside frame budget, and no equivalent guest/host
