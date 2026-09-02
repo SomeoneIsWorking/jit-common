@@ -20,6 +20,15 @@ add_library(jitcommon STATIC
 target_include_directories(jitcommon PUBLIC src/jitcommon)
 target_compile_options(jitcommon PRIVATE ${JC_WARN_FLAGS})
 
+# Tests belong to THIS project, not to whoever consumes it. A repo that pulls
+# jit-common in with add_subdirectory would otherwise inherit these tests into
+# its own ctest run, where they check jit-common's sources against a compile
+# database that consumer's build never generates -- a failure in the consumer's
+# suite that says nothing about the consumer.
+if(NOT CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+  return()
+endif()
+
 enable_testing()
 
 add_executable(test_code_memory tests/test_code_memory.cpp)
