@@ -173,6 +173,46 @@ This project is better positioned for runtime execution than psxport was.
      does not need a round trip. The pre-push audit for game assets and
      machine-specific paths is not waived by it.
 
+   **LANDED 2026-09-02** (`pc/xmen2` 39b1990). `src/native/x86_engine.c` owns
+   the seam; `x86_dispatch_one`'s miss asks it before reporting, so the
+   substrate keeps every address it has a body for. `X2_ENGINE` selects, and
+   the JIT arm is left out of the availability mask on purpose — a translated
+   block emits its direct CALLs inline, and one calling a statically
+   recompiled body would jump into host code with a guest EIP, so `jit` is
+   refused by name rather than downgraded.
+
+   Four things the wiring found that reading did not:
+
+   - **The bridge is only exact at a call boundary, so it says so.** The
+     substrate's CPU has no EIP, no AF and no DF. Flags travel as a
+     materialised EFLAGS word rather than as a lazy tuple neither model can
+     express in the other's terms; EIP comes from a page of INT3 the returning
+     function lands on. AF and DF are dead at a Win32 call boundary, which is
+     why the loss is exact rather than approximate.
+   - **The trampoline page collided twice before it landed**, at 0x000B0000
+     (the data arena) and 0x00090000 (the import poison page). Neither shared
+     silently, which turned each into a one-line fix rather than a corruption
+     hunt. It sits at 0x00080000, with the low map written down beside it.
+   - **A NULL host is an identity mapping.** `X86pMem` asked "is this
+     configured" as "is host null", and `pc/xmen2` maps the guest at the
+     host's own addresses, so the first interpreted instruction reported a
+     fetch fault at a page it had just written. Fixed in x86port (4e40796)
+     with both answers under test.
+   - **The seam does not fire in a 60-frame run.** Every address the game
+     dispatched to had a body, so the report is zeros — and zeros from a
+     working engine and from a broken bridge are the same two lines. The
+     engine therefore runs a program of its own through the real
+     `x2_engine_call` before the game starts, and asks the call-out predicate
+     about both a resolved override and plain guest data. Measured: selftest
+     passed, 6 guest instructions, 10 checks, 0 engine calls, run identical to
+     the substrate.
+
+   What this does NOT yet give is a measurement of the game through the
+   engine, because nothing routes a REACHED body to it. Step 3 needs a way to
+   make the substrate decline a chosen set of entry points, so the same
+   function can be run both ways and compared — the differential of S041,
+   applied to real game code.
+
 3. Measure against the frame budget (§5.1) before considering S041/S042.
 4. The 85 direct symbol calls, then per-module removal of the emitted corpus.
 5. `pc/xmen2/docs/strategy.md` argues for static recompilation and is rewritten
