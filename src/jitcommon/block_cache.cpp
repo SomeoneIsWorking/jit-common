@@ -105,23 +105,31 @@ void jc_block_cache_destroy(JcBlockCache *c) {
 }
 
 void *jc_block_lookup(JcBlockCache *c, JcGuestAddr guest) {
-  size_t i;
-  uint64_t probes = 0;
   if (!c || guest == JC_BLOCK_EMPTY) {
     return NULL;
   }
   c->stats.lookups++;
-  i = home_slot(c, guest);
-  /*
-   * BOUNDED. Termination here rests on an empty slot existing, which the insert
-   * limit guarantees -- but "some other invariant guarantees it" is exactly the
-   * reasoning that turns a bug elsewhere into a hang, and a hang is the worst
-   * failure this file could produce: no message, no crash, no core, just a
-   * frozen game. Mutation testing found it by removing the insert limit, at
-   * which point this loop span forever instead of reporting anything.
-   */
-  for (; probes < (uint64_t)c->capacity;) {
+  size_t i = home_slot(c, guest);
+  if (c->entries[i].guest == guest) {
+    c->stats.hits++;
+    c->stats.probe_length_total++;
+    if (c->stats.probe_length_max == 0) {
+      c->stats.probe_length_max = 1;
+    }
+    return c->entries[i].host;
+  }
+  if (c->entries[i].guest == JC_BLOCK_EMPTY) {
+    c->stats.misses++;
+    c->stats.probe_length_total++;
+    if (c->stats.probe_length_max == 0) {
+      c->stats.probe_length_max = 1;
+    }
+    return NULL;
+  }
+  uint64_t probes = 1;
+  for (;;) {
     probes++;
+    i = (i + 1u) & c->mask;
     if (c->entries[i].guest == guest) {
       c->stats.hits++;
       c->stats.probe_length_total += probes;
@@ -130,9 +138,7 @@ void *jc_block_lookup(JcBlockCache *c, JcGuestAddr guest) {
       }
       return c->entries[i].host;
     }
-    if (c->entries[i].guest == JC_BLOCK_EMPTY) {
-      /* An empty slot ends the probe: nothing was displaced past it. This is
-         why deletion must shift entries back rather than leave holes. */
+    if (c->entries[i].guest == JC_BLOCK_EMPTY || probes >= (uint64_t)c->capacity) {
       c->stats.misses++;
       c->stats.probe_length_total += probes;
       if (probes > c->stats.probe_length_max) {
@@ -140,16 +146,7 @@ void *jc_block_lookup(JcBlockCache *c, JcGuestAddr guest) {
       }
       return NULL;
     }
-    i = (i + 1u) & c->mask;
   }
-  /* Every slot examined and none empty: the table is full and this address is
-     not in it. A miss, reported like any other. */
-  c->stats.misses++;
-  c->stats.probe_length_total += probes;
-  if (probes > c->stats.probe_length_max) {
-    c->stats.probe_length_max = probes;
-  }
-  return NULL;
 }
 
 int jc_block_insert(JcBlockCache *c, JcGuestAddr guest, void *host, uint32_t guest_len) {
