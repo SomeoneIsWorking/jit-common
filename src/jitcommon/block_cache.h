@@ -65,6 +65,7 @@ typedef struct JcBlockEntry {
   void *host;         /* the EXEC address of the translated code */
   uint32_t guest_len; /* guest bytes covered, for range invalidation */
   uint32_t flags;
+  uint64_t _reserved; /* pad to 32 bytes so entries never span cache lines and scale is a power-of-two shift */
 } JcBlockEntry;
 
 /* Counters. Every one has a denominator recorded beside it, because a rate is
