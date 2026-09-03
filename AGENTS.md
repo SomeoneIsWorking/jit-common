@@ -18,12 +18,14 @@ library's scope.
   `shared/android-runtime` (see migration doc §10).
 - **Two runtimes per port:** native overrides (WIP, the direction) + the
   emulated runtime. The game is always the guest game.
-- **What is being replaced is STATIC recompilation, not recompilation.** No
-  guest code is translated to C ahead of time and shipped as source. Translating
-  guest code to host code AT RUNTIME -- a dynarec, a JIT, cached or not -- is
-  the point of this repo, not something to avoid. Say which one is meant:
-  "static recompilation" for the thing being removed, "the emulated runtime"
-  (interpreter or dynarec) for what replaces it. Bare "recomp" means neither.
+- **What is banned is CODE GENERATION, and only that.** No pipeline may emit
+  guest code as source (C or otherwise) to be compiled into the build. Every
+  other way of executing the guest is allowed and none is discouraged:
+  interpretation, a dynarec, a JIT, a block cache persisted across runs, AOT
+  translation done at install time on the player's machine. "Static
+  recompilation" in these docs always means the generated-source kind; say
+  "code generation" where that is what is meant, because a dynarec is
+  recompilation too and the phrase alone does not separate them.
 
 ## Conventions
 
