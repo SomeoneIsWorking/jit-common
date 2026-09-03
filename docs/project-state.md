@@ -60,7 +60,7 @@ S011 is the current focus.
 | S044 | `x86port` implements a DirectDraw guest graphics frontend lowering to `render-common` | missing | S006, S040 | G002 |
 | S045 | `x86port` implements a Direct3D 8 guest graphics frontend lowering to `render-common` | missing | S006, S040 | G002 |
 | S046 | `pc/lf2` reaches its existing conformance milestone through the JIT | missing | S041, S043, S044 | G001, G003 |
-| S047 | `pc/xmen2` reaches its existing conformance milestone through the JIT | missing | S041, S043, S045 | G001, G003 |
+| S047 | `pc/xmen2` reaches its existing conformance milestone through the JIT | partial | S041, S043, S045 | G001, G003 |
 | S050 | The `recomp-*` skill family is replaced by `jit-*` describing the JIT architecture | missing | — | G005 |
 | S051 | Global instructions carry no static-recompilation-only rules and record the revised shared-repo and Android ownership tables | missing | S007, S050 | G005 |
 | S060 | The second-wave ports (`kirbh`, `benefactor`, `mimp`) run on platform frameworks of their own | missing | S001, S002 | G001 |
@@ -831,9 +831,28 @@ through the JIT with the Direct3D 8 frontend. `docs/strategy.md` currently argue
 for static recompilation and must be rewritten in the same change — in the change
 that lands the frame-budget measurement, not before it.
 
-What is being replaced, measured 2026-09-01: **116,500** translated functions
-across 89 module translation units, **307 MB** of generated C, gitignored and
+What WAS replaced, measured 2026-09-01: **116,500** translated functions across
+89 module translation units, **307 MB** of generated C, gitignored and
 regenerated at build time. Ordered work and the four entry conditions: I004.
+
+**partial 2026-09-03.** The static corpus, its generator and its inputs are
+deleted (`pc/xmen2` 27f0a7b), and the game runs entirely on the x86port
+interpreter: all 20 Alchemy modules plus `XMen2.exe` decoded and executed at
+run time from the player's own images, D3D8 device created, frames presented,
+clean exit (`pc/xmen2` 8270f4a, 73687cb). Measured offscreen, 5 frames:
+374,155,039 guest instructions over 22,608 engine calls, deepest nesting 5, 69
+setjmps and 23 longjmps resumed.
+
+Gaps:
+
+- **No JIT.** This is the interpreter alone. Whether one is needed is the
+  question the missing measurement below answers.
+- **No frame-budget number for the whole game.** The 10.9 ms/frame in I004
+  covers `XMen2.exe` with the Alchemy DLLs still on the substrate. The 5-frame
+  run took ~70 s wall, most of it before the first present; the steady-state
+  per-frame cost has not been measured.
+- **Conformance is unproven.** Offscreen attract loop, 5 frames. Nobody has
+  played it, and `docs/strategy.md` still argues for static recompilation.
 
 ### S050 — `jit-*` skills
 
