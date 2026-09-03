@@ -41,11 +41,11 @@ budget (§5.1).
 Every port executes its guest binary by **interpreting or translating it at
 runtime**. **No guest code is statically recompiled to C ahead of time.**
 
-Runtime translation is not what is being dropped -- it is the replacement. A
-dynarec is recompilation; what makes it acceptable is *when* it happens and
-*where the output lives*: in memory, from the player's own image, discarded
-with the process. What is being dropped is the offline lifter and the generated
-C source tree it committed the build to.
+What is dropped is **code generation**: emitting guest code as source for the
+build to compile. Nothing else. A dynarec is recompilation too, and it is
+allowed -- so is a persisted block cache, and so is translating ahead of time on
+the player's own machine, because none of those puts generated guest source in
+the build. The line is the artefact, not the timing.
 
 Each port has **two runtimes for the guest title**:
 
@@ -56,9 +56,10 @@ Each port has **two runtimes for the guest title**:
 
 The game is always the guest game. "recomp" in the old docs meant *the emulated
 runtime*, which was static recompilation to C. Wherever old docs say "recomp /
-recompiled / generated body", read "the emulated runtime". Where a doc needs to
-name the thing being removed, "static recompilation" is the phrase -- a dynarec
-stays on the table for any framework whose measurement asks for one.
+recompiled / generated body", read "the emulated runtime". Where a doc names the
+thing being removed, it means the generated-source kind specifically; every
+other translation strategy stays on the table for any framework whose
+measurement asks for one.
 
 Priority targets: `pc/xmen2`, `pc/lf2`, `psx` (all titles), `x360/gears1`,
 `sunbright`. Second wave: `kirbh` (GBA), `benefactor` (Amiga), `mimp` (NES).
