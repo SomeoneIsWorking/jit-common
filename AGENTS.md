@@ -17,8 +17,13 @@ library's scope.
   intrinsics) only. Android APK runtime behaviour belongs in
   `shared/android-runtime` (see migration doc §10).
 - **Two runtimes per port:** native overrides (WIP, the direction) + the
-  emulated (JIT) runtime. The game is always the guest game. Do not reintroduce
-  "recomp" wording.
+  emulated runtime. The game is always the guest game.
+- **What is being replaced is STATIC recompilation, not recompilation.** No
+  guest code is translated to C ahead of time and shipped as source. Translating
+  guest code to host code AT RUNTIME -- a dynarec, a JIT, cached or not -- is
+  the point of this repo, not something to avoid. Say which one is meant:
+  "static recompilation" for the thing being removed, "the emulated runtime"
+  (interpreter or dynarec) for what replaces it. Bare "recomp" means neither.
 
 ## Conventions
 
