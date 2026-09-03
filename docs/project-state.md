@@ -847,10 +847,19 @@ Gaps:
 
 - **No JIT.** This is the interpreter alone. Whether one is needed is the
   question the missing measurement below answers.
-- **No frame-budget number for the whole game.** The 10.9 ms/frame in I004
-  covers `XMen2.exe` with the Alchemy DLLs still on the substrate. The 5-frame
-  run took ~70 s wall, most of it before the first present; the steady-state
-  per-frame cost has not been measured.
+- **Frame budget measured, on the attract path only.** 600 frames offscreen,
+  whole game interpreted (`pc/xmen2` e493779): **min 13.08 ms, mean 40.96 ms**,
+  and the histogram is the useful part -- 298 frames in 10-16 ms, 295 in
+  16-25 ms, 2 in 25-40 ms, 1 in 80-120 ms, 5 at 200 ms or more. So the median
+  sits ON the 16.67 ms budget rather than inside it, and the mean is carried by
+  a handful of load frames (the worst is 9.8 s, the first). This supersedes the
+  10.9 ms/frame in I004, which covered `XMen2.exe` with the Alchemy DLLs still
+  on the substrate.
+
+  What it does NOT cover: gameplay. This is the intro and attract loop, whose
+  draw counts are a fraction of a level's (177 draws over 61 frames in a
+  60-frame run), so it is a floor on the per-frame cost, not the steady state.
+  A gameplay number needs S047's conformance gap closed first.
 - **Conformance is unproven.** Offscreen attract loop, 5 frames. Nobody has
   played it, and `docs/strategy.md` still argues for static recompilation.
 
