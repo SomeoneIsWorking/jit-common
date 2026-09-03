@@ -138,21 +138,13 @@ static Mechanism resolve_mechanism(void) {
 #if defined(__APPLE__) && defined(__aarch64__)
   return kMechMapJit;
 #else
-  size_t p = page_size();
-  void *m = mmap(NULL, p, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-  if (m == MAP_FAILED) {
-    return kMechNone;
-  }
-  if (mprotect(m, p, PROT_READ | PROT_EXEC) == 0) {
-    munmap(m, p);
-    return kMechMprotect;
-  }
-  munmap(m, p);
 #if defined(__linux__)
   {
-    /* Anonymous execute was refused -- Android's SELinux execmem policy, or a
-       hardened desktop. A file mapping may still be executable, which is what
-       dual mapping exploits. */
+    /* Prefer dual-mapped memfd on Linux: avoiding mprotect flips on every
+       block translation eliminates kernel page-table rewrites and TLB
+       shootdowns across the code region during JIT warmup, and matches the
+       dual-mapping path used on Android. */
+    size_t p = page_size();
     int fd = open_memfd(p);
     if (fd >= 0) {
       void *rx = mmap(NULL, p, PROT_READ | PROT_EXEC, MAP_SHARED, fd, 0);
@@ -165,6 +157,16 @@ static Mechanism resolve_mechanism(void) {
     }
   }
 #endif
+  size_t p = page_size();
+  void *m = mmap(NULL, p, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (m == MAP_FAILED) {
+    return kMechNone;
+  }
+  if (mprotect(m, p, PROT_READ | PROT_EXEC) == 0) {
+    munmap(m, p);
+    return kMechMprotect;
+  }
+  munmap(m, p);
   return kMechNone;
 #endif
 }
