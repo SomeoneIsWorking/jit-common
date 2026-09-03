@@ -303,18 +303,64 @@ This project is better positioned for runtime execution than psxport was.
    substrate, so this is not yet the whole game interpreted. It is a bound on
    the exe's share, not a final number.
 
-   **One defect remains open, and it is named rather than hidden.** With the
-   whole module taken the run prints every shutdown report and then dies in the
-   host allocator (`sysmalloc: assertion failed`, exit 134). What is known:
-   either half of the module taken alone is clean *and takes no setjmp at all*,
-   so it is the setjmp path; a heap probe after all 23 resumes and after the
-   last engine call is clean, so the corruption only becomes visible at
-   teardown. The suspicion to test next is that a longjmp unwinds host frames
-   that hold host-side state — a D3D8 buffer lock is the obvious candidate,
-   the run reports 8,581 of them — leaving a stale pointer that a later unlock
-   writes through. The default substrate run and the engine with no take set
-   both still exit 0.
+   **That defect was NOT the setjmp path, and the suspicion above was wrong.**
+   With the whole module taken the run printed every shutdown report and then
+   died in the host allocator (`sysmalloc: assertion failed`, exit 134). The
+   reasoning that tied it to setjmp was circumstantial — the halves that were
+   clean also took no setjmp — and a longjmp unwinding a live D3D8 lock was a
+   story, not a measurement. AddressSanitizer named it in one line once it
+   could run at all: the heartbeat's import probe sizes its snapshot by
+   `x86_thunk_count()` at first use and then walks to the CURRENT count, and
+   the thunk table grows for the life of the process, so the probe wrote past
+   its own allocation from a second thread. Fixed by sizing it with
+   `x86_thunk_capacity()` (`pc/xmen2` 73687cb).
 
-4. The 85 direct symbol calls, then per-module removal of the emitted corpus.
-5. `pc/xmen2/docs/strategy.md` argues for static recompilation and is rewritten
-   in the change that lands the frame-budget number above, not before.
+   ASan could not run before this: its shadow is at low addresses and collides
+   with the identity-mapped guest at 0x00400000. `X2_GUEST_ARENA_RESERVED`
+   forces the rebased arena a desktop build otherwise skips — the same path
+   Apple Silicon and Android take in production. That is the reusable part of
+   this: the port now has a sanitizer build.
+
+4. **DONE 2026-09-02 — the corpus is gone, not shrunk.** The generator, the
+   generated bodies, and their inputs were deleted in one change (`pc/xmen2`
+   27f0a7b), on the user's instruction to delete first and let the build break
+   rather than validate the replacement alongside the old path.
+
+5. **DONE 2026-09-03 — the whole game runs on the engine** (`pc/xmen2`
+   8270f4a, 73687cb). Not a take set: there is nothing to take from. Every
+   guest instruction in all 20 modules and `XMen2.exe` is decoded and executed
+   by the interpreter, the game creates its D3D8 device, presents, reaches
+   `X2_MAX_FRAMES` and exits 0. Measured, offscreen, 5 frames: **374,155,039
+   guest instructions over 22,608 engine calls**, 836,547 hand-backs, deepest
+   nesting 5, 69 setjmps and 23 longjmps resumed.
+
+   What the deletion turned up, and what each needed:
+
+   - **Nothing could answer "does this host implement KERNEL32!X".** The
+     generated per-module IAT listings were that answer. It is a property of
+     the host, not of the player's images, so it is now written in the host:
+     one table per DLL surface, 398 entries across 12, each built from a
+     single macro list that also declares the stubs.
+   - **By-ordinal imports were never asked.** The binder only ever consulted
+     the registry by name, so WS2_32 — imported entirely by ordinal — went
+     straight to poison and `WSAStartup` could not answer.
+   - **Three refusals were about the corpus, not about correctness.**
+     `_initterm` listed every constructor target with no recompiled body and
+     aborted (that list existed to be fed back to the lifter as seeds); the
+     exe's entry point was refused when it had no body, which is now every
+     run; `engine_file_path` asked whether libIGCore's setter had been lifted
+     instead of whether the address is inside the mapped image.
+   - **The engine's step cap killed the game.** `main` does not return until
+     the process exits, so counting its instructions against a "this call is
+     not finishing" cap measured how long the game had been played. The
+     program's entry point is exempt; every call it makes is still capped.
+
+   **Read it with its limits.** Offscreen, attract loop, 5 frames — a
+   correctness result, not a performance one. The 5 frames took ~70 s of wall
+   time, most of it before the first present, and the per-frame steady state
+   under the whole-game interpreter has NOT been measured yet. The 10.9
+   ms/frame figure above covers `XMen2.exe` only, with the Alchemy DLLs still
+   on the substrate that no longer exists.
+
+6. `pc/xmen2/docs/strategy.md` argues for static recompilation and is now
+   describing a thing that has been deleted. Still to rewrite.
