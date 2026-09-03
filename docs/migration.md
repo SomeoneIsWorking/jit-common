@@ -39,7 +39,13 @@ framework picks is an implementation choice measured against that title's frame
 budget (§5.1).
 
 Every port executes its guest binary by **interpreting or translating it at
-runtime**. **No guest code is statically recompiled to C.**
+runtime**. **No guest code is statically recompiled to C ahead of time.**
+
+Runtime translation is not what is being dropped -- it is the replacement. A
+dynarec is recompilation; what makes it acceptable is *when* it happens and
+*where the output lives*: in memory, from the player's own image, discarded
+with the process. What is being dropped is the offline lifter and the generated
+C source tree it committed the build to.
 
 Each port has **two runtimes for the guest title**:
 
@@ -50,7 +56,9 @@ Each port has **two runtimes for the guest title**:
 
 The game is always the guest game. "recomp" in the old docs meant *the emulated
 runtime*, which was static recompilation to C. Wherever old docs say "recomp /
-recompiled / generated body", read "the emulated (JIT) runtime".
+recompiled / generated body", read "the emulated runtime". Where a doc needs to
+name the thing being removed, "static recompilation" is the phrase -- a dynarec
+stays on the table for any framework whose measurement asks for one.
 
 Priority targets: `pc/xmen2`, `pc/lf2`, `psx` (all titles), `x360/gears1`,
 `sunbright`. Second wave: `kirbh` (GBA), `benefactor` (Amiga), `mimp` (NES).
