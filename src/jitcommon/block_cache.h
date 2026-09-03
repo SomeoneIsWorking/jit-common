@@ -82,7 +82,17 @@ typedef struct JcBlockStats {
   uint64_t probe_length_max;
 } JcBlockStats;
 
-typedef struct JcBlockCache JcBlockCache;
+#define JC_HASH_MULT 0x9E3779B97F4A7C15ull
+
+typedef struct JcBlockCache {
+  JcBlockEntry *entries;
+  size_t capacity; /* power of two */
+  size_t mask;
+  unsigned shift; /* 64 - log2(capacity) */
+  size_t count;
+  size_t limit; /* refuse inserts past this, to bound probe length */
+  JcBlockStats stats;
+} JcBlockCache;
 
 /*
  * Create a cache holding up to `capacity` blocks. The table is rounded up to a
@@ -92,12 +102,32 @@ typedef struct JcBlockCache JcBlockCache;
 JcBlockCache *jc_block_cache_create(size_t capacity);
 void jc_block_cache_destroy(JcBlockCache *c);
 
+/* Slow path for collision probes. */
+void *jc_block_lookup_slow(JcBlockCache *c, JcGuestAddr guest, size_t initial_slot);
+
 /*
  * The hot path. Returns the host code address, or NULL if this guest address
  * has not been translated -- which is a NORMAL, COUNTED outcome and the signal
  * to translate, not an error.
  */
-void *jc_block_lookup(JcBlockCache *c, JcGuestAddr guest);
+static inline void *jc_block_lookup(JcBlockCache *c, JcGuestAddr guest) {
+  if (!c || guest == JC_BLOCK_EMPTY) {
+    return NULL;
+  }
+  c->stats.lookups++;
+  size_t i = (size_t)(((uint64_t)guest * JC_HASH_MULT) >> c->shift);
+  if (c->entries[i].guest == guest) {
+    c->stats.hits++;
+    c->stats.probe_length_total++;
+    return c->entries[i].host;
+  }
+  if (c->entries[i].guest == JC_BLOCK_EMPTY) {
+    c->stats.misses++;
+    c->stats.probe_length_total++;
+    return NULL;
+  }
+  return jc_block_lookup_slow(c, guest, i);
+}
 
 /*
  * Record a translation. `guest_len` is how many guest bytes the block covers,

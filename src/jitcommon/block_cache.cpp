@@ -14,21 +14,9 @@
  * every block on those platforms into a quarter of the table. The multiply
  * spreads that structure upward. It is also two instructions to emit.
  */
-#define JC_HASH_MULT 0x9E3779B97F4A7C15ull
-
 uint64_t jc_block_hash(JcGuestAddr guest) {
   return (uint64_t)guest * JC_HASH_MULT;
 }
-
-struct JcBlockCache {
-  JcBlockEntry *entries;
-  size_t capacity; /* power of two */
-  size_t mask;
-  unsigned shift; /* 64 - log2(capacity) */
-  size_t count;
-  size_t limit; /* refuse inserts past this, to bound probe length */
-  JcBlockStats stats;
-};
 
 static size_t round_up_pow2(size_t n) {
   size_t p = 1;
@@ -104,28 +92,8 @@ void jc_block_cache_destroy(JcBlockCache *c) {
   free(c);
 }
 
-void *jc_block_lookup(JcBlockCache *c, JcGuestAddr guest) {
-  if (!c || guest == JC_BLOCK_EMPTY) {
-    return NULL;
-  }
-  c->stats.lookups++;
-  size_t i = home_slot(c, guest);
-  if (c->entries[i].guest == guest) {
-    c->stats.hits++;
-    c->stats.probe_length_total++;
-    if (c->stats.probe_length_max == 0) {
-      c->stats.probe_length_max = 1;
-    }
-    return c->entries[i].host;
-  }
-  if (c->entries[i].guest == JC_BLOCK_EMPTY) {
-    c->stats.misses++;
-    c->stats.probe_length_total++;
-    if (c->stats.probe_length_max == 0) {
-      c->stats.probe_length_max = 1;
-    }
-    return NULL;
-  }
+void *jc_block_lookup_slow(JcBlockCache *c, JcGuestAddr guest, size_t initial_slot) {
+  size_t i = initial_slot;
   uint64_t probes = 1;
   for (;;) {
     probes++;
