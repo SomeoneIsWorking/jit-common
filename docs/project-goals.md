@@ -28,16 +28,17 @@ Success conditions:
   disabled for A/B diagnosis, and can call the original guest body through the
   dynarec without recursion.
 - Adding or removing an override never regenerates guest code.
-- Once a title reaches its dynamic conformance milestone, its generator,
-  generated corpus, static dispatcher, static-only tests, and static methodology
-  are deleted in that same milestone.
+- Before dynarec implementation resumes, each title's generator, generated
+  corpus, static dispatcher, generation-only seeds, static-only tests/config,
+  and static methodology are deleted. The build fails explicitly at the missing
+  runtime-executor boundary until the replacement lands.
 
-Contributing state items: S010–S015, S020–S032, S040–S044, S050–S051,
+Contributing state items: S010–S015, S020–S032, S040–S045, S050–S051,
 S060–S062, S070–S081.
 
 ## G002 — Each guest platform has one execution owner
 
-`psxport`, `x86port`, `xenonport`, `gcnport`, `gbaport`, `amigaport`, and
+`psxport`, `x86port`, `x360port`, `gcnport`, `gbaport`, `amigaport`, and
 `nesport` own their respective CPU integration, executable-image identity,
 native-call boundary, invalidation, scheduling exits, and diagnostics. Titles
 provide game identity, native overrides, and title policy.
@@ -63,8 +64,8 @@ representative interactive gameplay.
 
 Success conditions:
 
-- Each title preserves or re-establishes its current verified capability
-  frontier through the dynarec before the static path is deleted.
+- After the static product is deleted, each title re-establishes its current
+  verified capability frontier through the dynarec.
 - Each completed title adds a bounded representative-gameplay scenario with
   guest-PC/register, memory, interrupt/timing, and relevant device evidence.
 - Diagnostics prove both their positive and negative answers and report
@@ -152,9 +153,39 @@ Success conditions:
 - Shipping library code receives typed configuration and a configurable logger;
   it contains no title-specific `X2VIEW_*`, direct `getenv`, or direct stderr
   policy.
-- MUA remains deferred until every X-Men 2 goal passes, then consumes and extends
-  the proven shared contracts while keeping MUA addresses and policy local.
+- MUA's Xbox 360 dynarec migration proceeds through `x360port`; its Alchemy
+  adoption remains gated until every X-Men 2 goal passes, then consumes and
+  extends the proven shared contracts while keeping MUA addresses and policy
+  local.
 - Both gameplay build/link/call-path audits prove actual shared-library use; a
   checkout, provisioner pin, or offline XMLB/ARK tool invocation is insufficient.
 
 Contributing state items: S014, S015, S044.
+
+## G008 — Xbox 360 UE3 ownership has three explicit layers
+
+Gears uses a platform runtime, an Xbox 360 UE3 integration layer, and a
+Gears-family engine layer. These are distinct because Xbox execution is useful
+to non-UE3 titles, UE3/Xbox contracts are useful beyond Gears, and Gears title
+behavior must not leak into either shared framework.
+
+Success conditions:
+
+- `x360port` owns authenticated XEX mapping, Xenia CPU/thread/dynarec embedding,
+  Xbox kernel/device services, raw Xenos/XMA boundaries, typed imports, runtime
+  overrides, original calls, invalidation, and explicit singleton constraints.
+- `x360ue3` depends only on public `x360port` interfaces and owns reusable UE3
+  Xbox platform contracts: versioned engine ABI descriptions, UE3 RHI semantic
+  operations, object/resource/thread/frame lifetime, and title-supplied binding
+  schemas. It contains no Gears address, shader hash, pass roster, navigation,
+  save policy, or gameplay rule.
+- `GearsUE3` consumes `x360ue3` and owns Gears-family behavior, exact
+  title/revision bindings, pass identities, native subsystems, enhancements,
+  conformance, and application composition.
+- MUA consumes `x360port` and `shared/alchemy`; it does not depend on
+  `x360ue3` or `GearsUE3` because MUA is an Alchemy title, not a UE3 title.
+- The existing `shared/ue3` checkout is reference material only. No gameplay
+  product builds, links, packages, or copies it, and `x360ue3` remains an
+  independently authored clean-code framework.
+
+Contributing state items: S040–S045.

@@ -46,11 +46,12 @@ project-local plans before any further runtime implementation.
 | S030 | Toy Story 2 reaches its current frontier through `psxport` with no generated corpus | missing | S020 | G001, G003 |
 | S031 | Vagrant Story reaches its current frontier through `psxport` with no generated corpus | missing | S020 | G001, G003 |
 | S032 | C-12 reaches its current frontier through `psxport` with no generated corpus | missing | S020 | G001, G003 |
-| S040 | `xenonport` executes Xbox 360 guest code through Xenia's x64/A64 dynarecs and owns runtime native-call boundaries | missing | S005 | G001, G002, G004 |
-| S041 | Gears of War reaches its current frontier through `xenonport` with XenonRecomp removed | missing | S040 | G001, G003 |
-| S042 | Marvel: Ultimate Alliance reaches its current frontier through `xenonport` with XenonRecomp removed | missing | S040 | G001, G003 |
-| S043 | `shared/xenon-host` is absorbed into `xenonport` or removed without retaining a generated-function-map contract | missing | S040 | G002, G005 |
+| S040 | `x360port` executes Xbox 360 guest code through Xenia's x64/A64 dynarecs and owns runtime native-call boundaries | missing | S005 | G001, G002, G004, G008 |
+| S041 | Gears of War reaches its current frontier through `x360port` and `x360ue3`, with XenonRecomp removed | missing | S040, S045 | G001, G003, G008 |
+| S042 | Marvel: Ultimate Alliance reaches its current frontier through `x360port` with XenonRecomp removed | missing | S040 | G001, G003, G008 |
+| S043 | `shared/xenon-host` is absorbed into `x360port` or removed without retaining a generated-function-map contract | missing | S040 | G002, G005, G008 |
 | S044 | MUA consumes and extends the Alchemy contracts proved by X-Men 2 without creating a parallel title-local engine | missing | S015, X-Men 2 complete goals | G007 |
+| S045 | `x360ue3` provides a clean title-neutral UE3-on-Xbox-360 layer between `x360port` and `GearsUE3` | missing | S040 | G008 |
 | S050 | `gcnport` executes GameCube guest code through Dolphin's dynarec and owns robust runtime hooks | missing | S005 | G001, G002, G004 |
 | S051 | Sunbright reaches its current frontier through `gcnport` with its generated corpus removed | missing | S050 | G001, G003 |
 | S060 | Kirbh has one clean `gbaport` native/dynarec product architecture | missing | S005 | G001, G002, G004, G006 |
@@ -63,8 +64,8 @@ project-local plans before any further runtime implementation.
 
 Every title-completion item above includes the representative interactive
 gameplay gate in G003. The boot/menu/leaf checkpoints in `docs/migration.md` are
-first implementation discriminators, not completion evidence and not authority
-to delete the current path.
+first implementation discriminators, not completion evidence. Static execution
+is deleted before those discriminators and is never restored as a bridge.
 
 ## Evidence and exact gaps
 
@@ -90,7 +91,8 @@ selector, and fallback surfaces; shared validators pass.
 Evidence: the 2026-09-04 audit covered `shared/x86port`, `pc/xmen2`, `pc/lf2`,
 `psx/psxport` and every listed PSX title, `x360/gears1`, `x360/mua`,
 `shared/xenon-host`, `sunbright`, `kirbh`, `benefactor`, and `mimp`, including
-each first implementation discriminator and full gameplay retirement gate.
+each first implementation discriminator, break-first removal boundary, and full
+dynamic gameplay completion gate.
 Emulator-only AVPE is outside the migration.
 
 ### S005 — truthful local plans
@@ -216,7 +218,7 @@ dynarec with its required native CD override and valid VSync ownership.
 Missing capability: execute the authenticated whole program beyond its first
 VSync/former static miss through the PSX dynarec with no generated corpus.
 
-### S040 — xenonport executor
+### S040 — x360port executor
 
 Missing capability: wrap Xenia's existing x64/A64 dynarecs in a title-neutral
 executor owning authenticated images, contexts, threads, imports, device writes,
@@ -224,20 +226,23 @@ runtime overrides, original calls, and singleton constraints.
 
 ### S041 — Gears of War
 
-Missing capability: execute the first audited guest leaf/import/override
-round-trip, then reach the current Gears frontier and remove its roughly 185 MiB
-generated PPC corpus and XenonRecomp dependency.
+Missing capability: delete the roughly 185 MiB generated PPC corpus,
+XenonRecomp dependency, function maps, and static-only tooling first; then
+execute the audited guest leaf/import/override round-trip through `x360port`,
+route reusable UE3/Xbox semantics through `x360ue3`, and reach the current
+Gears frontier through `GearsUE3`.
 
 ### S042 — Marvel: Ultimate Alliance
 
-Missing capability: execute exact Gold XEX entry `0x824806D8` through Xenia to a
-named service boundary, then preserve current native/provisioning behavior while
-removing its unfinished static path.
+Missing capability: delete MUA's unfinished static product surfaces first,
+then execute exact Gold XEX entry `0x824806D8` through `x360port`/Xenia to a
+named service boundary while preserving its exact provisioning evidence. MUA
+does not use `x360ue3`.
 
 ### S043 — xenon-host disposition
 
 Missing capability: preserve its authenticated-image and import-validation
-facts in `xenonport`, remove the precomputed generated-function-map contract,
+facts in `x360port`, remove the precomputed generated-function-map contract,
 update consumers, and delete the separate owner if no independent responsibility
 remains.
 
@@ -247,6 +252,16 @@ Missing capability: MUA has no build, source, launcher, tool, or runtime
 dependency on `shared/alchemy`. After every X-Men 2 goal passes, MUA must reuse
 the proven shared engine contracts through a title-owned PPC/ARK ABI adapter,
 keeping title addresses and policy local.
+
+### S045 — x360ue3 platform-engine layer
+
+Missing capability: create an independently authored `shared/x360ue3` consumer
+of `x360port` for reusable UE3 Xbox platform contracts. It owns versioned UE3
+ABI descriptions, RHI semantic operations, and object/resource/thread/frame
+lifetime interfaces, while all exact Gears addresses, shader hashes, pass
+rosters, navigation, save policy, gameplay, and application composition remain
+in `GearsUE3`. The local `shared/ue3` reference checkout is never a build,
+runtime, or distribution dependency.
 
 ### S050 — gcnport executor
 
@@ -297,6 +312,6 @@ mapping.
 ### S081 — Mimp
 
 Missing capability: first execute RESET through title/attract through `nesport`,
-then prove representative gameplay before removing 16,664 generated functions
-and generated-call coroutine ownership. Retain Nestopia only as an independent
-test oracle.
+after first deleting 16,664 generated functions and generated-call coroutine
+ownership; then prove representative gameplay. Retain Nestopia only as an
+independent test oracle.
