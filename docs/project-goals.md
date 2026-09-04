@@ -32,7 +32,7 @@ Success conditions:
   generated corpus, static dispatcher, static-only tests, and static methodology
   are deleted in that same milestone.
 
-Contributing state items: S010–S013, S020–S032, S040–S043, S050–S051,
+Contributing state items: S010–S015, S020–S032, S040–S044, S050–S051,
 S060–S062, S070–S081.
 
 ## G002 — Each guest platform has one execution owner
@@ -135,3 +135,26 @@ Constraint: this goal is recorded but explicitly deferred; it does not enter the
 near-term migration order until the user changes its priority.
 
 Contributing state items: S060–S062.
+
+## G007 — X-Men 2 and MUA share one Alchemy engine layer
+
+`shared/alchemy` is the common owner for title-neutral Alchemy engine behavior.
+Its existing libraries and tools are a partial foundation, not proof that either
+gameplay product consumes a shared runtime.
+
+Success conditions:
+
+- X-Men 2 links and calls a narrow shared runtime contract in representative
+  gameplay, beginning with the `alchemy_input` guest `igControllerManager`
+  adapter and an A/B comparison against its retained path.
+- New shared stateful owners use focused C++ RAII/composition; proven stateless C
+  parsers remain C behind narrow interfaces.
+- Shipping library code receives typed configuration and a configurable logger;
+  it contains no title-specific `X2VIEW_*`, direct `getenv`, or direct stderr
+  policy.
+- MUA remains deferred until every X-Men 2 goal passes, then consumes and extends
+  the proven shared contracts while keeping MUA addresses and policy local.
+- Both gameplay build/link/call-path audits prove actual shared-library use; a
+  checkout, provisioner pin, or offline XMLB/ARK tool invocation is insufficient.
+
+Contributing state items: S014, S015, S044.

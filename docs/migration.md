@@ -94,6 +94,14 @@ project authorities. Then:
    hosts.
 4. Remove `shared/recomp-x86` after its last real consumer is gone.
 
+X-Men 2 also establishes the first product use of the intended shared Alchemy
+engine. `shared/alchemy` already contains partial `alchemy`, `alchemy_input`,
+and optional `alchemy_input_sdl` libraries plus XMLB/ARK tooling, but `x2native`
+currently links and calls none of those runtime targets. Integrate the narrow
+`alchemy_input`/guest `igControllerManager` adapter first and A/B it against the
+retained DirectInput path. Move further engine ownership only after a concrete
+shipping path proves the interface.
+
 ### 2. PSX: integrate the proven dynarec, then migrate one title at a time
 
 PSX does not need an interpreter-versus-JIT decision. Integrate a maintained,
@@ -122,9 +130,13 @@ Absorb the useful authenticated-image and import-validation contracts from
 function map or title-owned concrete PPC ABI. Remove the separate owner once no
 independent responsibility remains.
 
-Migrate Gears first, then MUA. Preserve their exact title provisioning and
-native host behavior while deleting XenonRecomp, generated PPC modules,
-precomputed function maps, and switch-target generation.
+Migrate Gears first. MUA remains deferred until every X-Men 2 project goal is
+verified; an intermediate X-Men 2 JIT or gameplay milestone does not lift that
+constraint. When MUA resumes, preserve its exact title provisioning and native
+host behavior while deleting XenonRecomp, generated PPC modules, precomputed
+function maps, and switch-target generation. Its native Alchemy services must
+consume and extend the contracts already proved by X-Men 2 in `shared/alchemy`;
+MUA does not build a second title-local engine.
 
 ### 4. GameCube: build `gcnport` around Dolphin
 
@@ -160,7 +172,7 @@ old path is removed.
 
 | Project | First implementation discriminator |
 | --- | --- |
-| X-Men 2 | Reconfirm the no-generated JIT default through representative interactive gameplay and native overrides; prove the product neither links nor selects the test interpreter; sync the canonical framework. |
+| X-Men 2 | Reconfirm the no-generated JIT default through representative interactive gameplay and native overrides; prove the product neither links nor selects the test interpreter; sync the canonical framework; link and call the first `shared/alchemy` runtime contract through the `igControllerManager` adapter. |
 | Little Fighter 2 | Execute its existing product frontier through `x86port`'s JIT with the current HLE/graphics adapter and no generator or generated C. |
 | Tomba! 2 | Prove one resident and one colliding-overlay override/original call, then reach the current boot-to-gameplay frontier with all native owners active and no generated files. |
 | Tomba! 1 | Reproduce the existing 35-field CRT0 boundary and continue to its current CD/title frontier through the PSX dynarec with six engine-neutral overrides. |
@@ -175,7 +187,7 @@ old path is removed.
 | Vagrant Story | Reach the 1,000/1,000 TITLE checkpoint with its required native CD override and no guest-VSync violation. |
 | C-12 | Execute the authenticated whole program beyond its first VSync/former static miss through the PSX dynarec. |
 | Gears of War | Execute real leaf `0x8222E868`, one typed import, and disabled/enabled/super override paths through Xenia before entry-point boot. |
-| Marvel: Ultimate Alliance | Execute the exact Gold XEX entry `0x824806D8` until the first named missing service with nonzero Xenia JIT blocks and no generated PPC. |
+| Marvel: Ultimate Alliance | After all X-Men 2 goals pass, execute the exact Gold XEX entry `0x824806D8` until the first named missing service with nonzero Xenia JIT blocks and no generated PPC, then consume the proven `shared/alchemy` contracts for native engine services. |
 | Sunbright | Boot exact `GMSE01` and prove the `J3DShape::draw` hook at `0x802e0390` through Dolphin's dynarec without generated guest code. |
 | Benefactor | Reach current title synchronization through runtime-translated 68000 blocks across its four address-reusing images. |
 | Mimp | Execute RESET through title/attract using physical MMC3 block identity and no host-stack/generated-function coroutine model. |

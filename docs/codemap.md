@@ -18,4 +18,5 @@ acceptance gates belong in `docs/migration.md`.
 | CPU decode, semantics, code emission, scheduling exits, image identity, and invalidation policy | The relevant platform framework | Outside this repository | `psxport`, `x86port`, `xenonport`, `gcnport`, `gbaport`, `amigaport`, or `nesport` |
 | Embedded-core executable memory and translated-block cache | The embedded core | Lightrec, Xenia, or Dolphin integration | Its maintained fork/integration; never a duplicate `jit-common` wrapper |
 | Game identity, native overrides, native subsystems, and title policy | The consuming title | Each game repository | The title's smallest owning module |
+| Title-neutral Alchemy engine behavior shared by X-Men 2 and MUA | `shared/alchemy` | Partial native libraries and tooling outside this repository | Prove the interface through X-Men 2 first; MUA later consumes it through a title-owned ABI adapter |
 | Cross-framework abstraction | No owner until demonstrated twice | — | Extract here only after two concrete framework implementations share the same contract |

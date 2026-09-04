@@ -31,6 +31,8 @@ project-local plans before any further runtime implementation.
 | S011 | X-Men 2 ships from `x86port` with no generated guest corpus and passes representative gameplay conformance | partial | S010 | G001, G003 |
 | S012 | Little Fighter 2 ships from `x86port` with no generated guest corpus and passes representative gameplay conformance | missing | S010 | G001, G003 |
 | S013 | Obsolete `shared/recomp-x86` is removed after all consumers leave it | missing | S011, S012 | G005 |
+| S014 | `shared/alchemy` is a product-ready title-neutral engine library with typed configuration and logging boundaries | partial | — | G007 |
+| S015 | X-Men 2 links and calls a proven `shared/alchemy` runtime contract in representative gameplay | missing | S014 | G007 |
 | S020 | `psxport` owns a per-`Core` PSX dynarec, runtime overrides, scoped original calls, bounded exits, and code invalidation | missing | S005 | G001, G002, G004 |
 | S021 | Tomba! 2 reaches its current gameplay frontier through `psxport` with no generated corpus | missing | S020 | G001, G003 |
 | S022 | Tomba! 1 reaches its current frontier through `psxport` with no generated corpus | missing | S020 | G001, G003 |
@@ -48,6 +50,7 @@ project-local plans before any further runtime implementation.
 | S041 | Gears of War reaches its current frontier through `xenonport` with XenonRecomp removed | missing | S040 | G001, G003 |
 | S042 | Marvel: Ultimate Alliance reaches its current frontier through `xenonport` with XenonRecomp removed | missing | S040 | G001, G003 |
 | S043 | `shared/xenon-host` is absorbed into `xenonport` or removed without retaining a generated-function-map contract | missing | S040 | G002, G005 |
+| S044 | MUA consumes and extends the Alchemy contracts proved by X-Men 2 without creating a parallel title-local engine | missing | S015, X-Men 2 complete goals | G007 |
 | S050 | `gcnport` executes GameCube guest code through Dolphin's dynarec and owns robust runtime hooks | missing | S005 | G001, G002, G004 |
 | S051 | Sunbright reaches its current frontier through `gcnport` with its generated corpus removed | missing | S050 | G001, G003 |
 | S060 | Kirbh has one clean `gbaport` native/dynarec product architecture | missing | S005 | G001, G002, G004, G006 |
@@ -127,6 +130,23 @@ preserve its Win32/DirectDraw/native seams, and remove its generator and roughly
 
 Missing capability: prove X-Men 2 and LF2 have no live dependency, then remove
 the obsolete shared static translator rather than retain it as legacy.
+
+### S014 — shared Alchemy engine readiness
+
+Existing `shared/alchemy` targets provide partial format/render-data/input
+libraries and XMLB/ARK tooling. Gap: its shipping library still carries
+X2-specific viewer vocabulary, environment reads, and direct stderr diagnostics,
+and no gameplay consumer proves a stable runtime API. Introduce typed config and
+logger boundaries, one dependency pin/resolver authority, and focused stateful
+engine owners without rewriting proven C parsers for style alone.
+
+### S015 — X-Men 2 shared Alchemy consumption
+
+Missing capability: X-Men 2 currently provisions `shared/alchemy` and invokes
+some XMLB/ARK tooling, while `x2native` links, includes, and calls none of its
+runtime libraries. First integrate `alchemy_input` through the guest
+`igControllerManager` adapter and A/B-verify it against the retained DirectInput
+path during representative gameplay.
 
 ### S020 — psxport dynarec executor
 
@@ -220,6 +240,13 @@ Missing capability: preserve its authenticated-image and import-validation
 facts in `xenonport`, remove the precomputed generated-function-map contract,
 update consumers, and delete the separate owner if no independent responsibility
 remains.
+
+### S044 — MUA shared Alchemy consumption
+
+Missing capability: MUA has no build, source, launcher, tool, or runtime
+dependency on `shared/alchemy`. After every X-Men 2 goal passes, MUA must reuse
+the proven shared engine contracts through a title-owned PPC/ARK ABI adapter,
+keeping title addresses and policy local.
 
 ### S050 — gcnport executor
 
