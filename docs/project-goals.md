@@ -79,6 +79,8 @@ S041–S042, S051, S061–S062, S071, and S081.
 
 ## G004 — Every declared host has a real dynarec backend
 
+USER 2026-09-04: "Try to also make arm64 work for both arm64 macs and Android"
+
 Host support is a verified backend property, not an assumption and not an
 interpreter escape hatch.
 
@@ -86,6 +88,8 @@ Success conditions:
 
 - Every released desktop and mobile target has a dynarec backend for its host
   architecture and passes the title's representative-gameplay gate there.
+- ARM64 support covers both Apple Silicon macOS and Android arm64-v8a as
+  separately qualified host targets; success on one does not imply the other.
 - Executable-memory publication, instruction-cache coherence, block
   invalidation, and ABI transitions are exercised on each supported host class.
 - A missing backend is reported as a missing capability; the project does not
