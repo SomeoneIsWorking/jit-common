@@ -110,10 +110,10 @@ state.
 
 ### S010 — x86port product JIT
 
-The X-Men 2 consumer contains an x64 JIT and test interpreter. Canonical
-`x86port` has been synchronized and edited to remove `Substrate`. Gap: the edit
-is unverified, local authorities are missing, gameplay must not link the test
-interpreter, and ARM64 product translation is absent.
+`x86port` commit `e18bf6e` provides a verified x64 JIT-only product target, a
+separately linked test interpreter, expanded reached instruction coverage, and
+mechanical product-link/source guards. Gap: Apple Silicon macOS and Android
+arm64-v8a product translation are both absent and must be qualified separately.
 
 ### S011 — X-Men 2 dynamic product
 
