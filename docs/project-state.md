@@ -47,9 +47,9 @@ project-local plans before any further runtime implementation.
 | S031 | Vagrant Story reaches its current frontier through `psxport` with no generated corpus | missing | S020 | G001, G003 |
 | S032 | C-12 reaches its current frontier through `psxport` with no generated corpus | missing | S020 | G001, G003 |
 | S040 | `x360port` executes Xbox 360 guest code through Xenia's x64/A64 dynarecs and owns runtime native-call boundaries | missing | S005 | G001, G002, G004, G008 |
-| S041 | Gears of War reaches its current frontier through `x360port` and `x360ue3`, with XenonRecomp removed | missing | S040, S045 | G001, G003, G008 |
-| S042 | Marvel: Ultimate Alliance reaches its current frontier through `x360port` with XenonRecomp removed | missing | S040 | G001, G003, G008 |
-| S043 | `shared/xenon-host` is absorbed into `x360port` or removed without retaining a generated-function-map contract | missing | S040 | G002, G005, G008 |
+| S041 | Gears of War reaches its current frontier through `x360port` and `x360ue3`, with the static PPC pipeline absent | missing | S040, S045 | G001, G003, G008 |
+| S042 | Marvel: Ultimate Alliance reaches its current frontier through `x360port` with the static PPC pipeline absent | missing | S040 | G001, G003, G008 |
+| S043 | The former shared Xbox host is replaced in-place by `x360port` without a generated-function-map contract | verified | — | G002, G005, G008 |
 | S044 | MUA consumes and extends the Alchemy contracts proved by X-Men 2 without creating a parallel title-local engine | missing | S015, X-Men 2 complete goals | G007 |
 | S045 | `x360ue3` provides a clean title-neutral UE3-on-Xbox-360 layer between `x360port` and `GearsUE3` | missing | S040 | G008 |
 | S050 | `gcnport` executes GameCube guest code through Dolphin's dynarec and owns robust runtime hooks | missing | S005 | G001, G002, G004 |
@@ -90,7 +90,7 @@ selector, and fallback surfaces; shared validators pass.
 
 Evidence: the 2026-09-04 audit covered `shared/x86port`, `pc/xmen2`, `pc/lf2`,
 `psx/psxport` and every listed PSX title, `x360/gears1`, `x360/mua`,
-`shared/xenon-host`, `sunbright`, `kirbh`, `benefactor`, and `mimp`, including
+the former shared Xbox host, `sunbright`, `kirbh`, `benefactor`, and `mimp`, including
 each first implementation discriminator, break-first removal boundary, and full
 dynamic gameplay completion gate.
 Emulator-only AVPE is outside the migration.
@@ -230,11 +230,11 @@ runtime overrides, original calls, and singleton constraints.
 
 ### S041 — Gears of War
 
-Missing capability: delete the roughly 185 MiB generated PPC corpus,
-XenonRecomp dependency, function maps, and static-only tooling first; then
-execute the audited guest leaf/import/override round-trip through `x360port`,
-route reusable UE3/Xbox semantics through `x360ue3`, and reach the current
-Gears frontier through `GearsUE3`.
+The generated PPC corpus, static translator dependency, function maps, and
+static-only tooling are absent. Missing capability: execute the audited guest
+leaf/import/override round-trip through `x360port`, route reusable UE3/Xbox
+semantics through `x360ue3`, and reach the current Gears frontier through
+`GearsUE3`.
 
 ### S042 — Marvel: Ultimate Alliance
 
@@ -243,12 +243,14 @@ then execute exact Gold XEX entry `0x824806D8` through `x360port`/Xenia to a
 named service boundary while preserving its exact provisioning evidence. MUA
 does not use `x360ue3`.
 
-### S043 — xenon-host disposition
+### S043 — x360port replacement
 
-Missing capability: preserve its authenticated-image and import-validation
-facts in `x360port`, remove the precomputed generated-function-map contract,
-update consumers, and delete the separate owner if no independent responsibility
-remains.
+Evidence: the predecessor repository was migrated in place to `shared/x360port`
+at commit `538c51f`, its GitHub repository and local checkout were renamed, and
+its old host runner, standalone guest memory, static dispatch ABI, title adapter,
+and generated-function-map ownership were deleted. The remaining verified
+library is explicitly `x360port_validation`; it cannot be mistaken for an Xenia
+executor, which remains missing under S040.
 
 ### S044 — MUA shared Alchemy consumption
 
