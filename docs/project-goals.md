@@ -1,106 +1,137 @@
 # Project goals
 
-This document owns the epic-level intent of the migration off static
-recompilation onto runtime execution. The architecture that realises it is `docs/migration.md`; the factual
-progress ledger is `docs/project-state.md`.
+This document owns the epic-level intent of the portfolio migration. The
+architecture and ordering live in `docs/migration.md`; factual progress lives in
+`docs/project-state.md`; atomic work lives in `docs/issues/`.
 
-## G001 — No static code generation; guest code runs at runtime, fast enough
+USER 2026-09-04: "I'm not going to do any more code generation style static
+recomps anymore, you can remove everything about that methodology"
 
-USER 2026-09-01: "I said JIT but what I meant is no static code generation and
-something performant so it doesn't have to be JIT."
+USER 2026-09-04: "I need native/dynarec hybrid projects"
 
-Each console/PC port executes guest machine code by interpreting or translating
-it at runtime, rather than by translating the whole binary to C at build time.
-The engine — switch interpreter, threaded interpreter, JIT, or a hybrid — is an
-implementation choice measured against each title's frame budget, not a
-requirement in itself.
+## G001 — Every port is a native/dynarec hybrid
 
-Native overrides remain the second runtime and the long-term direction: the
-emulated runtime executes whatever is not yet overridden, and an override's
-super-call runs the original guest function through it.
+The product executes native overrides where they exist and dynamically
+translates every remaining guest instruction on demand from the user's original
+binary. An interpreter may exist only in a separately built test target,
+including diagnostic tests. It must not be linked into, selectable by, or
+entered from a gameplay build.
 
 Success conditions:
 
-- No project retains a static translator, generated C corpus, or regeneration
-  build step.
-- Every priority port (`psx/*`, `sunbright`, `x360/gears1`, `pc/lf2`,
-  `pc/xmen2`) reaches its existing conformance milestone on its runtime engine,
-  at an acceptable frame rate.
-- Adding or removing an override requires no regeneration of anything.
-- Each framework's engine choice is backed by a measurement against its title's
-  frame budget, not by assumption. A JIT is built only where something simpler
-  was measured and missed.
+- No build, install, provisioning, or release path emits guest code as source,
+  object files, or a precompiled title substrate.
+- Every non-native guest entry in a gameplay build executes through a
+  dynarec/JIT. Product-link and selector checks prove that no interpreter is
+  present, rather than merely observing zero fallbacks in one run.
+- Native overrides are selected by runtime guest identity and address, can be
+  disabled for A/B diagnosis, and can call the original guest body through the
+  dynarec without recursion.
+- Adding or removing an override never regenerates guest code.
+- Once a title reaches its dynamic conformance milestone, its generator,
+  generated corpus, static dispatcher, static-only tests, and static methodology
+  are deleted in that same milestone.
 
-Non-goals: changing what the ports do, their renderers, their HLE behaviour, or
-their faithful-first-then-enhance phasing.
+Contributing state items: S010–S013, S020–S032, S040–S043, S050–S051,
+S060–S062, S070–S081.
 
-## G002 — One framework per platform, with a deliberately thin shared layer
+## G002 — Each guest platform has one execution owner
 
-Each console or host platform gets its own framework owning its CPU execution,
-guest APIs, HLE, renderer integration, and harness — the shape `psxport`
-already has. Shared libraries hold only what is genuinely platform-independent,
-and shared shape is extracted after two consumers demonstrably need it rather
-than predicted in advance.
-
-Success conditions:
-
-- `psxport`, `gcnport`, `xenonport`, and `x86port` exist as independent
-  frameworks; no framework depends on another.
-- `jit-common` contains no guest-CPU knowledge; `render-common` contains no
-  guest graphics API.
-- Every title is a consumer of exactly one framework and reaches shared
-  infrastructure only through it.
-
-## G003 — Verification is re-anchored without losing what the parity work proved
-
-The differential harnesses currently diff generated C against a reference
-emulator. That anchor disappears with static recompilation, and the machinery
-that replaces it must survive the migration — not because a difference count
-gates anything (it does not; the bar is a working game that looks right) but
-because it is how a visible defect gets root-caused instead of guessed at.
+`psxport`, `x86port`, `xenonport`, `gcnport`, `gbaport`, `amigaport`, and
+`nesport` own their respective CPU integration, executable-image identity,
+native-call boundary, invalidation, scheduling exits, and diagnostics. Titles
+provide game identity, native overrides, and title policy.
 
 Success conditions:
 
-- Every framework can run its new engine in lockstep against another and pause
-  at the first divergence. During a migration that pairing is
-  new-engine-vs-substrate, which needs no third engine.
-- Each project's residual/known-divergence list has been re-derived under the
-  new engine rather than assumed to carry over.
-- Where we wrote the translator ourselves (`x86port`), a reference interpreter
-  exists as the authority on the semantics it must match. Where a proven core is
-  embedded, no interpreter is built for validation — an existing one is kept as a
-  free diagnostic only.
+- Every title consumes exactly one platform framework.
+- A proven embedded core retains ownership of its own code cache and executable
+  memory; `jit-common` does not wrap or duplicate it.
+- `jit-common` contains no guest-CPU knowledge and gains an abstraction only
+  after at least two frameworks demonstrate the same contract.
+- Platform frameworks contain no title-specific addresses or behavior.
 
-## G004 — Ports stay deliverable on every host they support today
+Contributing state items: S002, S010, S020, S040, S043, S050, S060, S070,
+S080.
 
-The ports ship on desktop x86-64, Apple Silicon, and Android ARM64. Core
-selection, executable-memory handling, and the translation cache must respect
-that; a core that only emits x86-64 is a stated, recorded limitation rather than
-a silent one.
+## G003 — Conformance covers representative gameplay
 
-Success conditions:
-
-- Every framework runs on every host it must ship to. Where a chosen core's JIT
-  backend does not cover a host architecture, the fallback is a portable
-  interpreter and the question becomes whether it holds frame rate — measured,
-  not assumed.
-- Executable-memory handling works where anonymous RWX is refused (Android) — for
-  frameworks that use a JIT at all.
-- Each framework's host-architecture support is recorded honestly in project
-  state, including where it is degraded.
-- The persistent translation cache is correct across host architectures or
-  refuses to load.
-
-## G005 — Guidance and vocabulary match the architecture
-
-"Recomp" meant the emulated runtime. Every port has two runtimes: native
-overrides and the emulated runtime (now executed at runtime rather than
-statically generated). Skills, global instructions, and per-project docs must say
-so.
+Boot logos, menus, attract modes, and FMV playback are useful checkpoints but
+cannot establish gameplay correctness or performance. Migration evidence must
+exercise the native and dynarec sides of the actual hybrid product during
+representative interactive gameplay.
 
 Success conditions:
 
-- The `recomp-*` skill family is replaced by `jit-*`.
-- Global instructions no longer carry static-recompilation-only rules
-  ("generated code is sacrosanct", instruction-coverage build gates).
-- Each migrated project's own docs use the two-runtimes vocabulary.
+- Each title preserves or re-establishes its current verified capability
+  frontier through the dynarec before the static path is deleted.
+- Each completed title adds a bounded representative-gameplay scenario with
+  guest-PC/register, memory, interrupt/timing, and relevant device evidence.
+- Diagnostics prove both their positive and negative answers and report
+  denominators; absence of a symptom is not evidence without reachability.
+- Independent emulator, hardware, binary, or test-only interpreter evidence
+  remains available for root-causing the first divergence. The retired static
+  product is not retained as a permanent oracle.
+
+Contributing state items: every title capability in S011–S012, S021–S032,
+S041–S042, S051, S061–S062, S071, and S081.
+
+## G004 — Every declared host has a real dynarec backend
+
+Host support is a verified backend property, not an assumption and not an
+interpreter escape hatch.
+
+Success conditions:
+
+- Every released desktop and mobile target has a dynarec backend for its host
+  architecture and passes the title's representative-gameplay gate there.
+- Executable-memory publication, instruction-cache coherence, block
+  invalidation, and ABI transitions are exercised on each supported host class.
+- A missing backend is reported as a missing capability; the project does not
+  silently degrade to interpretation.
+- Runtime-populated caches are disposable user data, bound to the exact guest,
+  core, host, and configuration, and never required by a fresh install.
+
+Contributing state items: S002, S010, S020, S040, S050, S060, S070, S080.
+
+## G005 — Plans and guidance describe only the live methodology
+
+The old static-recompiler methodology is not preserved as an alternative,
+legacy section, or compatibility path.
+
+Success conditions:
+
+- Global skills and instructions describe native/dynarec hybrids and explicitly
+  reject offline guest translation.
+- Every affected project's goals, state, codemap, plan, launcher documentation,
+  and tests use the dynamic ownership model.
+- Historical evidence is retained only when it states a still-useful binary or
+  behavioral fact; generated-symbol workflows and static-process instructions
+  are removed.
+
+Contributing state items: S001, S003–S006, S013, S043.
+
+## G006 — Kirbh preserves its deferred product intent
+
+USER 2026-09-04: "My goal with it was drop-in splitscreen multiplayer and wider camera angle etc but eh"
+
+USER 2026-09-04: "you can put kirbh back in scope I guess but I won't work on it soon, just note the project goals"
+
+When Kirbh resumes, it starts from one clean native/dynarec architecture rather
+than reconciling its competing WIP product paths. Its intended product provides
+drop-in split-screen multiplayer and a wider gameplay camera.
+
+Success conditions:
+
+- One `gbaport` dynarec executes every non-native gameplay path; any interpreter
+  exists only in separately built tests.
+- Players can join and leave split-screen play through an explicit input and
+  shared-state ownership model.
+- The wider camera renders additional world coverage through deterministic
+  projection, viewport, scissor, and proven culling ownership without stretching
+  or frame-aware sampling.
+
+Constraint: this goal is recorded but explicitly deferred; it does not enter the
+near-term migration order until the user changes its priority.
+
+Contributing state items: S060–S062.
