@@ -149,10 +149,10 @@ narrow executor around Xenia `Memory`, `Processor`, `ThreadState`, `RawModule`,
 typed imports, device-memory callbacks, runtime overrides, and original calls.
 Account explicitly for Xenia's process-global memory/MMIO/clock assumptions.
 
-Absorb the useful authenticated-image and import-validation contracts from
-`shared/xenon-host` into `x360port`; do not retain its precomputed generated
-function map or title-owned concrete PPC ABI. Remove the separate owner once no
-independent responsibility remains.
+The former shared Xbox host has been migrated in place into `x360port`, carrying
+forward only its useful authenticated-image and import-validation contracts. Do
+not reintroduce its precomputed generated function map or title-owned concrete
+PPC ABI; no separate host owner remains.
 
 Gears and MUA are both first-class `x360port` consumers. Break both static paths
 first, preserving only independent evidence and native subsystem contracts,
