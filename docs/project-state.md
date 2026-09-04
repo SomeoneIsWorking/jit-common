@@ -67,6 +67,19 @@ gameplay gate in G003. The boot/menu/leaf checkpoints in `docs/migration.md` are
 first implementation discriminators, not completion evidence. Static execution
 is deleted before those discriminators and is never restored as a bridge.
 
+## Host CI support
+
+The host CI workflow exercises the checked-in code-memory and block-cache tests
+with a complete checkout history and no game assets:
+
+| Host | State | Evidence or exact gap |
+| --- | --- | --- |
+| Linux x86-64 | supported | `.github/workflows/ci.yml` configures and runs the CMake tests with Clang. |
+| Windows x86-64 | supported | `.github/workflows/ci.yml` configures and runs the CMake tests with clang-cl and the native Windows executable-memory path. |
+| macOS arm64 | supported | `.github/workflows/ci.yml` configures and runs the CMake tests with Apple Silicon Clang and the MAP_JIT path. |
+| macOS x86-64 | supported | `.github/workflows/ci.yml` configures and runs the CMake tests with Intel Apple Clang and the MAP_JIT path. |
+| Android arm64-v8a | missing | The code-memory layer is relevant to Android dynarecs, but there is not yet an NDK build plus native device/emulator runtime discriminator for executable publication, write protection, and instruction-cache coherence. `shared/android-port` should supply that device boundary; configure-only evidence is intentionally absent. |
+
 ## Evidence and exact gaps
 
 ### S001 — global skill replacement

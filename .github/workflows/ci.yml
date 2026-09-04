@@ -1,0 +1,110 @@
+name: Host CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux-x86-64:
+    name: Linux x86-64 / Clang
+    runs-on: ubuntu-26.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.13"
+      - name: Install native verification tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends clang clang-format clang-tidy cmake ninja-build
+      - name: Configure and build
+        env:
+          CC: clang
+          CXX: clang++
+        run: cmake -S . -B build/ci/linux-x86-64 -G Ninja -DCMAKE_BUILD_TYPE=Debug
+      - name: Run synthetic runtime and style tests
+        run: |
+          cmake --build build/ci/linux-x86-64 --parallel
+          ctest --test-dir build/ci/linux-x86-64 --output-on-failure
+
+  windows-x86-64:
+    name: Windows x86-64 / clang-cl
+    runs-on: windows-2025
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.13"
+      - name: Configure and build with the native Windows toolchain
+        env:
+          CC: clang-cl
+          CXX: clang-cl
+        run: |
+          cmake -S . -B build/ci/windows-x86-64 -G Ninja -DCMAKE_BUILD_TYPE=Debug
+          cmake --build build/ci/windows-x86-64 --parallel
+      - name: Run synthetic runtime and style tests
+        run: ctest --test-dir build/ci/windows-x86-64 --output-on-failure
+
+  macos-arm64:
+    name: macOS arm64 / Apple Clang
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.13"
+      - name: Install native verification tools
+        run: |
+          brew install llvm ninja
+          echo "$(brew --prefix llvm)/bin" >> "$GITHUB_PATH"
+      - name: Configure and build with Apple Silicon Clang
+        env:
+          CC: clang
+          CXX: clang++
+        run: cmake -S . -B build/ci/macos-arm64 -G Ninja -DCMAKE_BUILD_TYPE=Debug
+      - name: Run synthetic runtime and style tests
+        run: |
+          cmake --build build/ci/macos-arm64 --parallel
+          ctest --test-dir build/ci/macos-arm64 --output-on-failure
+
+  macos-x86-64:
+    name: macOS x86-64 / Apple Clang
+    runs-on: macos-15-intel
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.13"
+      - name: Install native verification tools
+        run: |
+          brew install llvm ninja
+          echo "$(brew --prefix llvm)/bin" >> "$GITHUB_PATH"
+      - name: Configure and build with Intel Mac Clang
+        env:
+          CC: clang
+          CXX: clang++
+        run: |
+          cmake -S . -B build/ci/macos-x86-64 -G Ninja -DCMAKE_BUILD_TYPE=Debug
+          cmake --build build/ci/macos-x86-64 --parallel
+      - name: Run synthetic runtime and style tests
+        run: ctest --test-dir build/ci/macos-x86-64 --output-on-failure
