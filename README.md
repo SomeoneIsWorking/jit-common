@@ -3,7 +3,7 @@
 Shared JIT infrastructure for the console→PC game-port frameworks. It is
 deliberately thin: **no CPU translator, no decoder, no per-architecture
 semantics, and no interface a framework is obliged to implement.** Each platform
-framework (`psxport`, `gcnport`, `xenonport`, `x86port`, …) owns its own CPU core
+framework (`psxport`, `gcnport`, `x360port`, `x86port`, …) owns its own CPU core
 integration and calls into this library for the parts that do not depend on the
 guest CPU.
 

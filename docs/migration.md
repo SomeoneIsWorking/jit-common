@@ -47,13 +47,20 @@ data and may never be a fresh-install prerequisite.
   only for a missing contract that at least two framework integrations actually
   share.
 
-## Evidence gate
+## Break-first migration and evidence gate
 
 Boot, logos, menus, attract loops, and FMV are checkpoints, not representative
 gameplay. In particular, a headless/no-audio/no-present FMV timing run with no
 native overrides active cannot qualify a product engine.
 
-A title's static path is deleted only when one bounded dynamic milestone proves:
+Before dynarec implementation starts in a title, preserve only independently
+useful binary/behavior evidence, native subsystem contracts, and oracle
+scenarios. Then delete its generator, generated corpus, static dispatcher,
+generation-only seeds, static-only tests/config/selectors, and stale methodology.
+The build may—and should—fail at one explicit missing runtime-executor boundary;
+the old product is not kept runnable as a bridge or comparison arm.
+
+After that break-first change, one bounded dynamic milestone must prove:
 
 - a fresh checkout can provision from the user's game asset and build without a
   translator or generated guest corpus;
@@ -72,10 +79,9 @@ A title's static path is deleted only when one bounded dynamic milestone proves:
 Do not regenerate, build, or run the static product during the migration.
 Already-recorded evidence may identify the capability frontier, but new
 comparison evidence comes from an independent emulator, hardware, binary
-analysis, or a separately built test oracle. Delete the generator, corpus,
-static dispatcher, generated-symbol tests, seeds, and methodology when the
-replacement reaches representative-gameplay conformance; none remains as a
-compatibility mode or oracle.
+analysis, or a separately built test oracle. Representative-gameplay
+conformance completes the dynamic migration; static execution is already absent
+and none may be restored as a compatibility mode or oracle.
 
 ## Platform architecture and order
 
@@ -117,26 +123,49 @@ existing boot-to-gameplay frontier. Tomba! 1 follows in the same repository;
 the other PSX titles all depend only on the shared executor, and any execution
 order is coordination policy here rather than a factual dependency.
 
-### 3. Xbox 360: build `xenonport` around Xenia
+### 3. Xbox 360: build `x360port`, then layer UE3 and title engines
 
 Use Xenia's existing x64 and A64 dynarec backends. Do not write a PPC
-interpreter and do not put Xenia behind `jit-common` caches. `xenonport` owns a
+interpreter and do not put Xenia behind `jit-common` caches. `x360port` owns a
 narrow executor around Xenia `Memory`, `Processor`, `ThreadState`, `RawModule`,
 typed imports, device-memory callbacks, runtime overrides, and original calls.
 Account explicitly for Xenia's process-global memory/MMIO/clock assumptions.
 
 Absorb the useful authenticated-image and import-validation contracts from
-`shared/xenon-host` into `xenonport`; do not retain its precomputed generated
+`shared/xenon-host` into `x360port`; do not retain its precomputed generated
 function map or title-owned concrete PPC ABI. Remove the separate owner once no
 independent responsibility remains.
 
-Migrate Gears first. MUA remains deferred until every X-Men 2 project goal is
-verified; an intermediate X-Men 2 JIT or gameplay milestone does not lift that
-constraint. When MUA resumes, preserve its exact title provisioning and native
-host behavior while deleting XenonRecomp, generated PPC modules, precomputed
-function maps, and switch-target generation. Its native Alchemy services must
-consume and extend the contracts already proved by X-Men 2 in `shared/alchemy`;
-MUA does not build a second title-local engine.
+Gears and MUA are both first-class `x360port` consumers. Break both static paths
+first, preserving only independent evidence and native subsystem contracts,
+then drive the shared executor from each title's first discriminator so the
+framework cannot silently acquire Gears-only policy.
+
+Gears has two additional owners above the platform layer:
+
+```text
+Gears title/revision adapters + GearsUE3
+                    |
+                    v
+        shared/x360ue3
+                    |
+                    v
+        shared/x360port -> Xenia dynarec
+```
+
+`x360ue3` is an independently authored clean-code Xbox 360 UE3 integration. It
+owns reusable, versioned UE3 ABI descriptions, UE3 RHI semantic operations,
+and object/resource/thread/frame lifetime contracts over public `x360port`
+interfaces. It does not own exact title addresses, shader hashes, pass rosters,
+navigation, save policy, gameplay rules, or application composition; those stay
+in `GearsUE3`. The existing local `shared/ue3` checkout is reference material,
+not a source, build, runtime, or distribution dependency.
+
+MUA is an Alchemy title, not a UE3 title. Its dependency is
+`MUA -> x360port -> Xenia`, plus `MUA -> shared/alchemy` for native engine
+services. MUA's dynarec migration is active now. Only its Alchemy adoption waits
+for X-Men 2 to prove the corresponding shared contracts; MUA does not build a
+second title-local Alchemy engine and never depends on `x360ue3` or `GearsUE3`.
 
 ### 4. GameCube: build `gcnport` around Dolphin
 
@@ -166,9 +195,9 @@ WIP product paths are not promoted into the new foundation.
 ## Audited first implementation discriminators
 
 These checkpoints establish that the replacement executor is wired to real
-title code. They do not authorize static-corpus deletion by themselves. Each
-title still needs the representative-gameplay evidence gate above before the
-old path is removed.
+title code after the static product has already been deleted. They do not
+complete a migration by themselves; each title still needs the representative-
+gameplay evidence gate above.
 
 | Project | First implementation discriminator |
 | --- | --- |
@@ -186,8 +215,8 @@ old path is removed.
 | Toy Story 2 | Reach Andy's Room within 120 frames while invalidating all 22 streamed modules across their two reused code slots. |
 | Vagrant Story | Reach the 1,000/1,000 TITLE checkpoint with its required native CD override and no guest-VSync violation. |
 | C-12 | Execute the authenticated whole program beyond its first VSync/former static miss through the PSX dynarec. |
-| Gears of War | Execute real leaf `0x8222E868`, one typed import, and disabled/enabled/super override paths through Xenia before entry-point boot. |
-| Marvel: Ultimate Alliance | After all X-Men 2 goals pass, execute the exact Gold XEX entry `0x824806D8` until the first named missing service with nonzero Xenia JIT blocks and no generated PPC, then consume the proven `shared/alchemy` contracts for native engine services. |
+| Gears of War | After deleting the static executor/corpus, execute real leaf `0x8222E868`, one typed import, and disabled/enabled/super override paths through `x360port`; put reusable UE3/Xbox semantics in `x360ue3` and exact Gears behavior in `GearsUE3`. |
+| Marvel: Ultimate Alliance | After deleting its static product surfaces, execute the exact Gold XEX entry `0x824806D8` through `x360port` until the first named missing service with nonzero Xenia JIT blocks. Adopt `shared/alchemy` only after X-Men 2 proves each shared engine contract. |
 | Sunbright | Boot exact `GMSE01` and prove the `J3DShape::draw` hook at `0x802e0390` through Dolphin's dynarec without generated guest code. |
 | Benefactor | Reach current title synchronization through runtime-translated 68000 blocks across its four address-reusing images. |
 | Mimp | Execute RESET through title/attract using physical MMC3 block identity and no host-stack/generated-function coroutine model. |
