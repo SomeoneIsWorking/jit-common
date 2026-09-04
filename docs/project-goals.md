@@ -143,11 +143,19 @@ Contributing state items: S060–S062.
 Its existing libraries and tools are a partial foundation, not proof that either
 gameplay product consumes a shared runtime.
 
+It remains one repository with three cohesive component families: a neutral
+`shared` engine core, a separately linked `x86` adapter over `x86port`, and a
+separately linked `x360` adapter over `x360port`. The neutral core has no CPU
+framework dependency. The title composes and pins the relevant sibling
+repositories and links exactly one adapter; Alchemy does not vendor or embed
+both platform frameworks as submodules.
+
 Success conditions:
 
 - X-Men 2 links and calls a narrow shared runtime contract in representative
-  gameplay, beginning with the `alchemy_input` guest `igControllerManager`
-  adapter and an A/B comparison against its retained path.
+  gameplay through the x86 adapter, beginning with the `alchemy_input` guest
+  `igControllerManager` contract and an A/B comparison against its retained
+  path.
 - New shared stateful owners use focused C++ RAII/composition; proven stateless C
   parsers remain C behind narrow interfaces.
 - Shipping library code receives typed configuration and a configurable logger;
@@ -155,8 +163,8 @@ Success conditions:
   policy.
 - MUA's Xbox 360 dynarec migration proceeds through `x360port`; its Alchemy
   adoption remains gated until every X-Men 2 goal passes, then consumes and
-  extends the proven shared contracts while keeping MUA addresses and policy
-  local.
+  extends the proven shared contracts through the x360 adapter while keeping
+  MUA addresses and policy local.
 - Both gameplay build/link/call-path audits prove actual shared-library use; a
   checkout, provisioner pin, or offline XMLB/ARK tool invocation is insufficient.
 

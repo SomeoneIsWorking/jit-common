@@ -108,6 +108,24 @@ currently links and calls none of those runtime targets. Integrate the narrow
 retained DirectInput path. Move further engine ownership only after a concrete
 shipping path proves the interface.
 
+Keep Alchemy as one repository with three component families rather than
+creating `x86alchemy` and `x360alchemy` repositories:
+
+```text
+               alchemy/shared
+                /           \
+       alchemy/x86       alchemy/x360
+             |                 |
+          x86port           x360port
+```
+
+The arrows are dependency direction: each optional adapter consumes its
+platform framework's public interfaces, while `alchemy/shared` depends on
+neither. Exact addresses, executable identities, and title policy stay in
+X-Men 2 and MUA. The title repository composes and pins Alchemy plus the one
+relevant platform framework; Alchemy itself must not carry both frameworks as
+submodules or link an unused adapter into a product.
+
 ### 2. PSX: integrate the proven dynarec, then migrate one title at a time
 
 PSX does not need an interpreter-versus-JIT decision. Integrate a maintained,
@@ -166,6 +184,8 @@ MUA is an Alchemy title, not a UE3 title. Its dependency is
 services. MUA's dynarec migration is active now. Only its Alchemy adoption waits
 for X-Men 2 to prove the corresponding shared contracts; MUA does not build a
 second title-local Alchemy engine and never depends on `x360ue3` or `GearsUE3`.
+When that gate opens, MUA links Alchemy's x360 adapter; it does not make the
+neutral Alchemy core depend directly on Xenia or `x360port`.
 
 ### 4. GameCube: build `gcnport` around Dolphin
 
