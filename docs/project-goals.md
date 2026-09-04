@@ -9,21 +9,30 @@ recomps anymore, you can remove everything about that methodology"
 
 USER 2026-09-04: "I need native/dynarec hybrid projects"
 
-## G001 — Every port is a native/dynarec hybrid
+USER 2026-09-04: "Okay then I'll allow you doing what DuckStation does"
 
-The product executes native overrides where they exist and dynamically
-translates every remaining guest instruction on demand from the user's original
-binary. An interpreter may exist only in a separately built test target,
-including diagnostic tests. It must not be linked into, selectable by, or
-entered from a gameplay build.
+USER 2026-09-04: "For all projects, not just PSX"
+
+USER 2026-09-04: "And uh weaker consoles like NES/GBA/Amiga can be interpreter, sorry I forgot about them"
+
+## G001 — Every port has one runtime-executed native hybrid
+
+The product executes native overrides where they exist and consumes the user's
+original binary at runtime. PSX, x86, GameCube, and Xbox 360 default to dynamic
+translation; their interpreter may run only as a reason-coded, measured fallback
+after the JIT refuses a block. NES, GBA, and Amiga may use a maintained
+interpreter as the shipping CPU when representative gameplay meets each host's
+correctness and performance budget.
 
 Success conditions:
 
 - No build, install, provisioning, or release path emits guest code as source,
   object files, or a precompiled title substrate.
-- Every non-native guest entry in a gameplay build executes through a
-  dynarec/JIT. Product-link and selector checks prove that no interpreter is
-  present, rather than merely observing zero fallbacks in one run.
+- Every dynarec-class product offers ordinary cold blocks to the JIT first and
+  reports translated and fallback blocks/instructions with denominators. A
+  fallback-dominated run or zero translated blocks is not dynarec evidence.
+- Every low-power interpreter-class product proves representative interactive
+  gameplay on each released host; boot, menus, logos, or video are insufficient.
 - Native overrides are selected by runtime guest identity and address, can be
   disabled for A/B diagnosis, and can call the original guest body through the
   dynarec without recursion.
@@ -77,12 +86,12 @@ Success conditions:
 Contributing state items: every title capability in S011–S012, S021–S032,
 S041–S042, S051, S061–S062, S071, and S081.
 
-## G004 — Every declared host has a real dynarec backend
+## G004 — Every declared dynarec host has a real backend
 
 USER 2026-09-04: "Try to also make arm64 work for both arm64 macs and Android"
 
 Host support is a verified backend property, not an assumption and not an
-interpreter escape hatch.
+interpreter escape hatch for a dynarec-class platform.
 
 Success conditions:
 
@@ -92,8 +101,8 @@ Success conditions:
   separately qualified host targets; success on one does not imply the other.
 - Executable-memory publication, instruction-cache coherence, block
   invalidation, and ABI transitions are exercised on each supported host class.
-- A missing backend is reported as a missing capability; the project does not
-  silently degrade to interpretation.
+- A missing backend is reported as a missing capability; bounded fallback may
+  cover individual refused blocks but never replace the backend or qualify it.
 - Runtime-populated caches are disposable user data, bound to the exact guest,
   core, host, and configuration, and never required by a fresh install.
 
@@ -122,14 +131,15 @@ USER 2026-09-04: "My goal with it was drop-in splitscreen multiplayer and wider 
 
 USER 2026-09-04: "you can put kirbh back in scope I guess but I won't work on it soon, just note the project goals"
 
-When Kirbh resumes, it starts from one clean native/dynarec architecture rather
+When Kirbh resumes, it starts from one clean native/emulator architecture rather
 than reconciling its competing WIP product paths. Its intended product provides
 drop-in split-screen multiplayer and a wider gameplay camera.
 
 Success conditions:
 
-- One `gbaport` dynarec executes every non-native gameplay path; any interpreter
-  exists only in separately built tests.
+- One `gbaport` built around a maintained GBA core executes every non-native
+  gameplay path; a shipping interpreter is allowed after representative
+  gameplay qualifies it on each released host.
 - Players can join and leave split-screen play through an explicit input and
   shared-state ownership model.
 - The wider camera renders additional world coverage through deterministic

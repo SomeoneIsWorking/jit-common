@@ -16,9 +16,11 @@ library's scope.
   plain OS primitives (`memfd_create`, `mmap`, `mprotect`, cache-flush
   intrinsics) only. Android build/device mechanics belong in
   `shared/android-port`; title-neutral APK runtime behavior belongs in Lucent.
-- **One gameplay product:** native overrides plus an on-demand dynarec/JIT for
-  every remaining guest path. An interpreter may exist only in separately
-  selected test/diagnostic targets; gameplay builds must not link or select it.
+- **One gameplay product:** PSX, x86, GameCube, and Xbox 360 use native overrides
+  plus a dynarec/JIT by default, with only reason-coded and measured
+  DuckStation-style interpreter fallback. NES, GBA, and Amiga may instead use a
+  maintained interpreter when representative gameplay proves the host budget.
+  Interpreter-only diagnostic modes never masquerade as dynarec evidence.
 - **Offline guest translation is retired.** No build, install, or provisioning
   pipeline may emit guest code as source, object code, or a precompiled title
   substrate. The product dynamically translates the user's original binary
