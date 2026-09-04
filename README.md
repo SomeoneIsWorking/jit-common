@@ -42,7 +42,8 @@ python3 ../re-harness/project_state.py --root .
 
 The migration is underway. `jit-common` provides executable-memory and
 block-cache primitives, but neither is mandatory for embedded cores that
-already own those mechanisms. Gameplay products contain native overrides plus a
-dynarec/JIT; interpreters are test-only and must not be linked or selectable in
-gameplay builds. The current focus in
+already own those mechanisms. PSX, x86, GameCube, and Xbox 360 products default
+to a dynarec/JIT and may use only bounded, reason-coded interpreter fallback.
+NES, GBA, and Amiga may use a maintained interpreter when representative
+gameplay qualifies it on each host. The current focus in
 [`docs/project-state.md`](docs/project-state.md) names the next unfinished boundary.

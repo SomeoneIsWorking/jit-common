@@ -5,18 +5,21 @@ plan rather than preserving it as an alternative.
 
 ## Product contract
 
-Every affected game becomes one product with two cooperating execution paths:
+Every affected game becomes one product with cooperating runtime execution paths:
 
 1. **Native path:** verified host implementations replace selected guest
    functions or subsystems.
-2. **Dynarec path:** every remaining guest instruction is translated on demand
-   from the user's original binary and executed from a runtime code cache.
+2. **Guest CPU path:** PSX, x86, GameCube, and Xbox 360 translate ordinary
+   guest blocks on demand. NES, GBA, and Amiga may use a maintained interpreter.
 
-An interpreter can bootstrap a backend or diagnose a divergence only in a
-separately built test target, including diagnostic tests. A gameplay build must
-not link it, expose an engine selector for it, or contain a fallback into it.
-Product verification therefore includes a link/selector audit as well as
-nonzero dynarec execution.
+Dynarec-class products follow DuckStation's shape: compile ordinary cold blocks
+before execution, but permit a bounded interpreter fallback when compilation or
+safe fetch is explicitly refused. Every fallback reports a typed reason, guest
+PC, and block/instruction counts before returning to JIT dispatch. Interpretation
+is never the default mode, a profiling first pass, an asynchronous compilation
+bridge, or proof of a missing host backend. NES/GBA/Amiga may deliberately use
+an interpreter as their default CPU only after representative gameplay—not boot,
+menus, logos, or video—meets the correctness/performance budget on each host.
 
 “No static recompilation” means no offline, build-time, install-time, or
 provisioning-time emission of guest code as C/C++, object code, or a precompiled
@@ -65,8 +68,10 @@ After that break-first change, one bounded dynamic milestone must prove:
 - a fresh checkout can provision from the user's game asset and build without a
   translator or generated guest corpus;
 - the authenticated title reaches at least its current verified frontier;
-- the dynarec executes nonzero blocks and build/link inspection proves that no
-  interpreter is present in the gameplay product;
+- a dynarec-class product executes nonzero translated blocks, reports fallback
+  blocks/instructions by reason, and reaches the discriminator primarily through
+  JIT execution; or a low-power interpreter-class product meets its declared
+  representative-gameplay correctness and performance budget;
 - native overrides and an override-bypassing original call both run through the
   shipping dispatcher;
 - relevant overlay/bank/self-modifying-code invalidation is exercised with a
@@ -87,7 +92,7 @@ and none may be restored as a compatibility mode or oracle.
 
 ### 1. x86-32: finish the existing dynamic path
 
-`shared/x86port` already contains an x86-32 test interpreter and an x64 JIT.
+`shared/x86port` already contains an x86-32 interpreter and an x64 JIT.
 Synchronize its canonical repository with the proven X-Men 2 consumer,
 remove `Substrate` from the public engine and documentation, and establish its
 project authorities. Then:
@@ -128,11 +133,13 @@ submodules or link an unused adapter into a product.
 
 ### 2. PSX: integrate the proven dynarec, then migrate one title at a time
 
-PSX does not need an interpreter-versus-JIT decision. Integrate a maintained,
-pinned Lightrec revision directly into a per-`Core` executor. Lightrec owns its
+Integrate a maintained, pinned Lightrec fork directly into a per-`Core` executor.
+Ordinary cold blocks compile synchronously; Lightrec's interpreter is retained
+only for reason-coded refused-block fallback, not its upstream first-pass or
+interpret-while-compiling behavior. Lightrec owns its
 cache and executable memory. `psxport` owns machine-state synchronization,
 HLE/device callbacks, image-aware overrides, original calls, bounded exits, and
-invalidation.
+invalidation plus translated/fallback telemetry.
 
 Prove the shared contract first with one resident override and two overlay images
 that reuse an address. Then finish one title before starting another. Tomba! 2
@@ -143,8 +150,8 @@ order is coordination policy here rather than a factual dependency.
 
 ### 3. Xbox 360: build `x360port`, then layer UE3 and title engines
 
-Use Xenia's existing x64 and A64 dynarec backends. Do not write a PPC
-interpreter and do not put Xenia behind `jit-common` caches. `x360port` owns a
+Use Xenia's existing x64 and A64 dynarec backends and their bounded fallback;
+do not write a second PPC interpreter or put Xenia behind `jit-common` caches. `x360port` owns a
 narrow executor around Xenia `Memory`, `Processor`, `ThreadState`, `RawModule`,
 typed imports, device-memory callbacks, runtime overrides, and original calls.
 Account explicitly for Xenia's process-global memory/MMIO/clock assumptions.
@@ -196,18 +203,20 @@ is the first and only title until its declared gate is complete.
 
 ### 5. Amiga and NES
 
-`amigaport` must dynamically translate 68000 with complete PC/SR/exception state
-and cache/override keys that include the active loaded image. Its first consumer
-is Benefactor.
+`amigaport` may use a maintained 68000 interpreter with complete
+PC/SR/exception state and override keys that include the active loaded image.
+Its first consumer is Benefactor; representative gameplay must qualify the
+interpreter on every released host.
 
-`nesport` must dynamically translate 6502 with complete PC/status/interrupt/cycle
-state and cache/override identity based on the physical MMC3 ROM mapping rather
-than CPU address alone. Its first consumer is Mimp.
+`nesport` may use a maintained 6502 interpreter with complete
+PC/status/interrupt/cycle state and override identity based on the physical MMC3
+ROM mapping rather than CPU address alone. Its first consumer is Mimp;
+representative gameplay must qualify the interpreter on every released host.
 
 ### Deferred: Kirbh
 
 Kirbh remains in scope but is not a near-term implementation stream. Its durable
-goals are one clean `gbaport` native/dynarec runtime, drop-in split-screen
+goals are one clean `gbaport` native/emulator runtime, drop-in split-screen
 multiplayer, and a wider gameplay camera implemented at projection/viewport/
 scissor and proven culling boundaries rather than by stretching. Its competing
 WIP product paths are not promoted into the new foundation.
@@ -221,7 +230,7 @@ gameplay evidence gate above.
 
 | Project | First implementation discriminator |
 | --- | --- |
-| X-Men 2 | Reconfirm the no-generated JIT default through representative interactive gameplay and native overrides; prove the product neither links nor selects the test interpreter; sync the canonical framework; link and call the first `shared/alchemy` runtime contract through the `igControllerManager` adapter. |
+| X-Men 2 | Reconfirm the no-generated JIT default through representative interactive gameplay and native overrides; report bounded fallback with denominators; sync the canonical framework; link and call the first `shared/alchemy` runtime contract through the `igControllerManager` adapter. |
 | Little Fighter 2 | Execute its existing product frontier through `x86port`'s JIT with the current HLE/graphics adapter and no generator or generated C. |
 | Tomba! 2 | Prove one resident and one colliding-overlay override/original call, then reach the current boot-to-gameplay frontier with all native owners active and no generated files. |
 | Tomba! 1 | Reproduce the existing 35-field CRT0 boundary and continue to its current CD/title frontier through the PSX dynarec with six engine-neutral overrides. |
@@ -238,8 +247,8 @@ gameplay evidence gate above.
 | Gears of War | After deleting the static executor/corpus, execute real leaf `0x8222E868`, one typed import, and disabled/enabled/super override paths through `x360port`; put reusable UE3/Xbox semantics in `x360ue3` and exact Gears behavior in `GearsUE3`. |
 | Marvel: Ultimate Alliance | After deleting its static product surfaces, execute the exact Gold XEX entry `0x824806D8` through `x360port` until the first named missing service with nonzero Xenia JIT blocks. Adopt `shared/alchemy` only after X-Men 2 proves each shared engine contract. |
 | Sunbright | Boot exact `GMSE01` and prove the `J3DShape::draw` hook at `0x802e0390` through Dolphin's dynarec without generated guest code. |
-| Benefactor | Reach current title synchronization through runtime-translated 68000 blocks across its four address-reusing images. |
-| Mimp | Execute RESET through title/attract using physical MMC3 block identity and no host-stack/generated-function coroutine model. |
+| Benefactor | Reach current title synchronization through a maintained 68000 core across its four address-reusing images, then qualify representative interactive gameplay performance. |
+| Mimp | Execute RESET through title/attract using a maintained 6502 core, physical MMC3 block identity, and no host-stack/generated-function coroutine model; then qualify representative gameplay performance. |
 
 ## Planning-before-implementation gate
 

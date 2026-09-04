@@ -1,6 +1,6 @@
 # Project state
 
-Factual capability ledger for the native/dynarec migration. Epic intent is
+Factual capability ledger for the runtime-execution migration. Epic intent is
 `docs/project-goals.md`; architecture and order are `docs/migration.md`; atomic
 work is `docs/issues/`.
 
@@ -8,9 +8,9 @@ work is `docs/issues/`.
 
 The baseline is the current portfolio of native-enhanced ports whose remaining
 guest code is emitted offline as large generated C/C++ corpora and compiled into
-each product. The intended product instead combines native overrides with
-on-demand dynamic translation of the user's original binary. Emulator-based
-projects without an offline guest-code pipeline are outside this migration.
+each product. The intended products instead consume the user's original binary
+at runtime: dynarec-first for stronger platforms, and a maintained interpreter
+where explicitly allowed for low-power consoles.
 
 ## Current focus
 
@@ -27,13 +27,13 @@ project-local plans before any further runtime implementation.
 | S004 | Every affected repository has been audited against the native/dynarec requirement | verified | — | G005 |
 | S005 | Central and project-local goals, state, ownership maps, and migration plans reflect the audited architecture | partial | S004 | G005 |
 | S006 | The public project catalogue reflects each repository's revised architecture and capability state | missing | S005 | G005 |
-| S010 | `x86port` owns x86-64 dynamic translation for products and a separately built x86-32 interpreter for tests, with no static engine | partial | S005 | G001, G002, G004 |
+| S010 | `x86port` owns x86-64 dynamic translation plus bounded counted fallback, with no static engine | partial | S005 | G001, G002, G004 |
 | S011 | X-Men 2 ships from `x86port` with no generated guest corpus and passes representative gameplay conformance | partial | S010 | G001, G003 |
 | S012 | Little Fighter 2 ships from `x86port` with no generated guest corpus and passes representative gameplay conformance | missing | S010 | G001, G003 |
 | S013 | Obsolete `shared/recomp-x86` is removed after all consumers leave it | missing | S011, S012 | G005 |
 | S014 | `shared/alchemy` is one product-ready neutral engine with separately linked x86/x360 platform adapters and typed configuration/logging boundaries | partial | — | G007 |
 | S015 | X-Men 2 links and calls a proven `shared/alchemy` contract through its x86 adapter in representative gameplay | missing | S014 | G007 |
-| S020 | `psxport` owns a per-`Core` PSX dynarec, runtime overrides, scoped original calls, bounded exits, and code invalidation | missing | S005 | G001, G002, G004 |
+| S020 | `psxport` owns a per-`Core` PSX dynarec, counted refused-block fallback, runtime overrides, scoped original calls, bounded exits, and code invalidation | missing | S005 | G001, G002, G004 |
 | S021 | Tomba! 2 reaches its current gameplay frontier through `psxport` with no generated corpus | missing | S020 | G001, G003 |
 | S022 | Tomba! 1 reaches its current frontier through `psxport` with no generated corpus | missing | S020 | G001, G003 |
 | S023 | Crash Bandicoot reaches its current frontier through `psxport` with no generated corpus | missing | S020 | G001, G003 |
@@ -54,12 +54,12 @@ project-local plans before any further runtime implementation.
 | S045 | `x360ue3` provides a clean title-neutral UE3-on-Xbox-360 layer between `x360port` and `GearsUE3` | missing | S040 | G008 |
 | S050 | `gcnport` executes GameCube guest code through Dolphin's dynarec and owns robust runtime hooks | missing | S005 | G001, G002, G004 |
 | S051 | Sunbright reaches its current frontier through `gcnport` with its generated corpus removed | missing | S050 | G001, G003 |
-| S060 | Kirbh has one clean `gbaport` native/dynarec product architecture | missing | S005 | G001, G002, G004, G006 |
+| S060 | Kirbh has one clean `gbaport` native/emulator product architecture | missing | S005 | G001, G002, G006 |
 | S061 | Kirbh provides drop-in split-screen multiplayer | missing | S060 | G003, G006 |
 | S062 | Kirbh provides a wider gameplay camera without final-image stretching | missing | S060 | G003, G006 |
-| S070 | `amigaport` dynamically translates 68000 code with image-scoped identity and complete CPU state | missing | S005 | G001, G002, G004 |
+| S070 | `amigaport` owns a maintained 68000 interpreter with image-scoped identity and complete CPU state | missing | S005 | G001, G002 |
 | S071 | Benefactor reaches its current frontier through `amigaport` with its generated corpus removed | missing | S070 | G001, G003 |
-| S080 | `nesport` dynamically translates 6502 code with physical MMC3 mapping identity and complete execution state | missing | S005 | G001, G002, G004 |
+| S080 | `nesport` owns a maintained 6502 interpreter with physical MMC3 mapping identity and complete execution state | missing | S005 | G001, G002 |
 | S081 | Mimp reaches its current frontier through `nesport` with its generated corpus removed | missing | S080 | G001, G003 |
 
 Every title-completion item above includes the representative interactive
@@ -82,9 +82,9 @@ demonstrated by two framework consumers.
 
 ### S003 — global instruction replacement
 
-Evidence: commits `75249b3` and `bcb1150` remove the static methodology, require
-native/dynarec hybrids, and forbid interpreters from gameplay build, link,
-selector, and fallback surfaces; shared validators pass.
+Evidence: commits `75249b3`, `bcb1150`, and `859c47b` remove the static
+methodology, define dynarec-first bounded fallback, and permit measured
+interpreter products for explicitly low-power consoles; shared validators pass.
 
 ### S004 — portfolio audit
 
@@ -284,8 +284,9 @@ Dolphin's dynarec, then remove roughly 2.79 million generated source lines.
 ### S060 — Kirbh deferred runtime
 
 Missing capability: replace the competing WIP execution paths with one clean
-`gbaport` native/dynarec architecture whose gameplay binary contains no
-interpreter. This project is explicitly deferred and is not a near-term stream.
+`gbaport` native/emulator architecture around a maintained GBA core, then prove
+representative gameplay correctness and performance on each released host. This
+project is explicitly deferred and is not a near-term stream.
 
 ### S061 — Kirbh split-screen
 
@@ -301,9 +302,9 @@ image or using frame-aware heuristics.
 
 ### S070 — amigaport executor
 
-Missing capability: dynamically translate 68000 with complete PC/SR/exception
-state, bounded execution, image-generation cache keys, invalidation, and scoped
-native/original calls.
+Missing capability: integrate a maintained 68000 interpreter with complete
+PC/SR/exception state, bounded execution, active-image identity, and scoped
+native/original calls, then qualify representative gameplay on each host.
 
 ### S071 — Benefactor
 
@@ -313,13 +314,14 @@ native calls.
 
 ### S080 — nesport executor
 
-Missing capability: dynamically translate 6502 with complete PC/status/
-interrupt/cycle state and cache/override identity based on physical MMC3 ROM
-mapping.
+Missing capability: integrate a maintained 6502 interpreter with complete
+PC/status/interrupt/cycle state and override identity based on physical MMC3
+ROM mapping, then qualify representative gameplay on each host.
 
 ### S081 — Mimp
 
 Missing capability: first execute RESET through title/attract through `nesport`,
 after first deleting 16,664 generated functions and generated-call coroutine
-ownership; then prove representative gameplay. Retain Nestopia only as an
-independent test oracle.
+ownership; then prove representative gameplay. A maintained Nestopia execution
+core may be the product CPU, while an independently composed oracle remains the
+comparison owner.
