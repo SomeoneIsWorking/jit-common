@@ -30,7 +30,7 @@ project-local plans before any further runtime implementation.
 | S010 | `x86port` owns x86-64 dynamic translation plus bounded counted fallback, with no static engine | partial | S005 | G001, G002, G004 |
 | S011 | X-Men 2 ships from `x86port` with no generated guest corpus and passes representative gameplay conformance | partial | S010 | G001, G003 |
 | S012 | Little Fighter 2 ships from `x86port` with no generated guest corpus and passes representative gameplay conformance | missing | S010 | G001, G003 |
-| S013 | Obsolete `shared/recomp-x86` is removed after all consumers leave it | missing | S011, S012 | G005 |
+| S013 | Obsolete `shared/recomp-x86` is removed after all consumers leave it | verified | — | G005 |
 | S014 | `shared/alchemy` is one product-ready neutral engine with separately linked x86/x360 platform adapters and typed configuration/logging boundaries | partial | — | G007 |
 | S015 | X-Men 2 links and calls a proven `shared/alchemy` contract through its x86 adapter in representative gameplay | missing | S014 | G007 |
 | S020 | `psxport` owns a per-`Core` PSX dynarec, counted refused-block fallback, runtime overrides, scoped original calls, bounded exits, and code invalidation | missing | S005 | G001, G002, G004 |
@@ -130,8 +130,10 @@ preserve its Win32/DirectDraw/native seams, and remove its generator and roughly
 
 ### S013 — retire recomp-x86
 
-Missing capability: prove X-Men 2 and LF2 have no live dependency, then remove
-the obsolete shared static translator rather than retain it as legacy.
+Evidence: a repository-wide live-source scan found no consumer dependency;
+only this retirement record and consumer source-policy refusals remained. The
+GitHub repository was deleted and the clean local checkout at commit `980038c`
+was moved to the desktop trash on 2026-09-04 rather than retained as legacy.
 
 ### S014 — shared Alchemy engine readiness
 

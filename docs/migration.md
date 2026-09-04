@@ -103,7 +103,10 @@ project authorities. Then:
    JIT without making graphics extraction a CPU prerequisite.
 3. Implement and qualify the ARM64 backend required by declared Apple/Android
    hosts.
-4. Remove `shared/recomp-x86` after its last real consumer is gone.
+
+The obsolete `shared/recomp-x86` repository was removed after the portfolio
+scan found no live consumer. Runtime x86 execution now has one shared owner:
+`shared/x86port`.
 
 X-Men 2 also establishes the first product use of the intended shared Alchemy
 engine. `shared/alchemy` already contains partial `alchemy`, `alchemy_input`,
