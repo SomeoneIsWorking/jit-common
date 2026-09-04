@@ -238,7 +238,6 @@ int jc_code_select_mechanism(const char *name) {
 
 JcCodeStatus jc_code_region_create(size_t size, JcCodeRegion *out, char *reason, unsigned reason_len) {
   size_t bytes;
-  Mechanism m;
   if (!out || size == 0) {
     say(reason, reason_len, "a code region needs a destination and a non-zero size");
     return kJcCodeBadArgument;
@@ -249,8 +248,6 @@ JcCodeStatus jc_code_region_create(size_t size, JcCodeRegion *out, char *reason,
     say(reason, reason_len, "size %zu overflows when rounded to pages", size);
     return kJcCodeBadArgument;
   }
-  m = mechanism();
-
 #if defined(_WIN32)
   {
     void *p = VirtualAlloc(NULL, bytes, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
@@ -262,10 +259,11 @@ JcCodeStatus jc_code_region_create(size_t size, JcCodeRegion *out, char *reason,
     out->exec = (unsigned char *)p;
     out->size = bytes;
     out->writable = 1;
-    out->mechanism = (int)kMechVirtualProtect;
+    out->mechanism = (int)mechanism();
     return kJcCodeOk;
   }
 #else
+  Mechanism m = mechanism();
   if (m == kMechNone) {
     /* REFUSED BY NAME. Returning writable memory here would turn a policy
        decision into a jump into a non-executable page much later. */
