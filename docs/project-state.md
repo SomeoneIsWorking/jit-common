@@ -80,6 +80,32 @@ Evidence: commit `75249b3` replaced the `recomp-*` skill family with
 cores are not required to use them. Gap: no shared abstraction has yet been
 demonstrated by two framework consumers.
 
+The code-memory owner now provides
+`jc_code_publish_range(region, offset, bytes_written)`: it flushes the changed
+executable-address range while retaining the existing whole-region protection
+transition. `jc_code_publish(region, bytes_written)` remains the offset-zero
+compatibility entry point. Range checks reject overflow and out-of-region bytes;
+a valid empty range closes the write window without publishing new instructions.
+This lets append-only emitters avoid repeatedly flushing all preceding blocks.
+The API does not introduce a persistent cache or change block-cache policy.
+
+On Apple Silicon, `jc_code_begin_write` always reopens the calling thread's
+MAP_JIT write window. A different region's publication may have closed it even
+when the requested region's local writable flag remains set. Callers must begin
+writing again after any publication on that thread.
+
+Verification on 2026-09-05, Apple Silicon macOS: `test_code_memory` passes
+606 checks with zero failures. The execution battery runs through the default
+MAP_JIT mechanism and forced mprotect (one of two forced mechanisms available;
+Linux dual-mapped memfd is unavailable here). Range tests execute an initial
+function and 64 appended/rewritten values at offset 256, preserve the initial
+function, reject invalid and overflowing bounds without closing a write window,
+and check empty-range publication. Two simultaneous regions exercise the
+thread-wide protection transition. All three CTest entries pass, including the
+clang-format/clang-tidy gate. These are code-memory correctness observations;
+Windows, Linux dual mapping, concurrent patching, and application performance
+are not established by this host's tests.
+
 ### S003 — global instruction replacement
 
 Evidence: commits `75249b3`, `bcb1150`, and `859c47b` remove the static

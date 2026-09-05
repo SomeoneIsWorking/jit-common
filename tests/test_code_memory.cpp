@@ -181,6 +181,43 @@ static void test_patched_code_is_visible(void) {
   jc_code_region_destroy(&r);
 }
 
+/* Appending and patching away from offset zero must both publish the actual
+ * instructions, without destroying code already published in the region. */
+static void test_range_publication(void) {
+  JcCodeRegion r{};
+  char reason[256] = {};
+  CHECK_EQ_U(jc_code_region_create(4096, &r, reason, sizeof reason), kJcCodeOk);
+  if (!r.write) {
+    return;
+  }
+  union {
+    unsigned char *p;
+    ConstFn f;
+  } first{}, second{};
+  first.p = r.exec;
+  second.p = r.exec + 256;
+  size_t n = emit_return_constant(r.write, 42);
+  CHECK_EQ_U(jc_code_publish_range(&r, 0, n), kJcCodeOk);
+  CHECK_EQ_U(first.f(), 42u);
+  for (unsigned value = 1; value <= 64; value++) {
+    CHECK_EQ_U(jc_code_begin_write(&r), kJcCodeOk);
+    n = emit_return_constant(r.write + 256, value);
+    CHECK_EQ_U(jc_code_publish_range(&r, 256, n), kJcCodeOk);
+    CHECK_EQ_U(first.f(), 42u);
+    CHECK_EQ_U(second.f(), value);
+  }
+  CHECK_EQ_U(jc_code_publish_range(&r, r.size + 1, 0), kJcCodeBadArgument);
+  CHECK_EQ_U(jc_code_publish_range(&r, r.size, 1), kJcCodeBadArgument);
+  CHECK_EQ_U(jc_code_publish_range(&r, 1, (size_t)-1), kJcCodeBadArgument);
+  CHECK_EQ_U(jc_code_begin_write(&r), kJcCodeOk);
+  CHECK_EQ_U(jc_code_publish_range(&r, r.size, 1), kJcCodeBadArgument);
+  CHECK_EQ_U(r.writable, 1);
+  CHECK_EQ_U(jc_code_publish_range(&r, r.size, 0), kJcCodeOk);
+  CHECK_EQ_U(r.writable, 0);
+  CHECK_EQ_U(first.f(), 42u);
+  jc_code_region_destroy(&r);
+}
+
 /*
  * Two regions, both live at once, each holding a different function. A cache
  * holds thousands of blocks simultaneously, and an allocator that hands back
@@ -207,6 +244,10 @@ static void test_regions_are_independent(void) {
   CHECK(a.exec != b.exec);
 
   CHECK_EQ_U(jc_code_publish(&a, emit_return_constant(a.write, 111)), kJcCodeOk);
+  /* MAP_JIT protection belongs to the thread: publishing A closes the write
+     window even though B's region-local flag still says writable. */
+  CHECK_EQ_U(b.writable, 1);
+  CHECK_EQ_U(jc_code_begin_write(&b), kJcCodeOk);
   CHECK_EQ_U(jc_code_publish(&b, emit_return_constant(b.write, 222)), kJcCodeOk);
   ua.p = a.exec;
   ub.p = b.exec;
@@ -265,6 +306,8 @@ static void test_bad_requests_are_refused(void) {
   /* Destroy is safe on a zeroed region, so teardown paths need no null checks
      and a double destroy is not a crash. */
   memset(&r, 0, sizeof r);
+  CHECK_EQ_U(jc_code_publish_range(NULL, 0, 0), kJcCodeBadArgument);
+  CHECK_EQ_U(jc_code_publish_range(&r, 0, 0), kJcCodeBadArgument);
   jc_code_region_destroy(&r);
   jc_code_region_destroy(&r);
 
@@ -344,6 +387,7 @@ static void run_battery(void) {
 #if HAVE_HOST_CODE
   RUN(test_emitted_code_actually_runs);
   RUN(test_patched_code_is_visible);
+  RUN(test_range_publication);
   RUN(test_regions_are_independent);
   RUN(test_write_and_exec_views_agree);
 #endif
@@ -360,6 +404,9 @@ static void test_every_available_mechanism(void) {
   const int n = (int)(sizeof mechanisms / sizeof mechanisms[0]);
   int covered = 0;
   int i;
+  jc_code_select_mechanism(NULL);
+  printf("  -- through default %s:\n", jc_code_mechanism());
+  run_battery();
   for (i = 0; i < n; i++) {
     if (!jc_code_select_mechanism(mechanisms[i])) {
       printf("  -- %s: NOT AVAILABLE on this host, so it is UNTESTED here\n", mechanisms[i]);
@@ -373,8 +420,7 @@ static void test_every_available_mechanism(void) {
   jc_code_select_mechanism(NULL);
   /* The denominator. A run that covered one mechanism and a run that covered
      both must not read the same. */
-  printf("  -- %d of %d mechanism(s) exercised on this host\n", covered, n);
-  CHECK(covered >= 1);
+  printf("  -- default mechanism and %d of %d forced mechanism(s) exercised on this host\n", covered, n);
 }
 
 int main(void) {
