@@ -371,10 +371,14 @@ void jc_code_region_destroy(JcCodeRegion *r) {
 /* ---- publishing ----------------------------------------------------------- */
 
 JcCodeStatus jc_code_publish(JcCodeRegion *r, size_t bytes_written) {
+  return jc_code_publish_range(r, 0, bytes_written);
+}
+
+JcCodeStatus jc_code_publish_range(JcCodeRegion *r, size_t offset, size_t bytes_written) {
   if (!r || !r->write) {
     return kJcCodeBadArgument;
   }
-  if (bytes_written > r->size) {
+  if (offset > r->size || bytes_written > r->size - offset) {
     /* REFUSED, not clamped. A caller that believes it wrote more than it
        reserved has already run off the end of something. */
     return kJcCodeBadArgument;
@@ -386,13 +390,13 @@ JcCodeStatus jc_code_publish(JcCodeRegion *r, size_t bytes_written) {
     if (!VirtualProtect(r->write, r->size, PAGE_EXECUTE_READ, &old)) {
       return kJcCodeNoExecutePermission;
     }
-    FlushInstructionCache(GetCurrentProcess(), r->exec, bytes_written);
+    FlushInstructionCache(GetCurrentProcess(), r->exec + offset, bytes_written);
   }
 #else
 #if defined(__APPLE__) && defined(__aarch64__)
   if (r->mechanism == (int)kMechMapJit) {
     pthread_jit_write_protect_np(1);
-    sys_icache_invalidate(r->exec, bytes_written);
+    sys_icache_invalidate(r->exec + offset, bytes_written);
     r->writable = 0;
     return kJcCodeOk;
   }
@@ -418,7 +422,7 @@ JcCodeStatus jc_code_publish(JcCodeRegion *r, size_t bytes_written) {
    * written through a different virtual address, and flushing that one leaves
    * the address actually being executed stale.
    */
-  __builtin___clear_cache((char *)r->exec, (char *)r->exec + bytes_written);
+  __builtin___clear_cache((char *)r->exec + offset, (char *)r->exec + offset + bytes_written);
 #endif
   r->writable = 0;
   return kJcCodeOk;
@@ -428,6 +432,15 @@ JcCodeStatus jc_code_begin_write(JcCodeRegion *r) {
   if (!r || !r->write) {
     return kJcCodeBadArgument;
   }
+#if defined(__APPLE__) && defined(__aarch64__)
+  if (r->mechanism == (int)kMechMapJit) {
+    /* Another region's publish may have protected this thread since this
+       region became writable. Its local flag cannot describe that state. */
+    pthread_jit_write_protect_np(0);
+    r->writable = 1;
+    return kJcCodeOk;
+  }
+#endif
   if (r->writable) {
     return kJcCodeOk;
   }
@@ -439,13 +452,6 @@ JcCodeStatus jc_code_begin_write(JcCodeRegion *r) {
     }
   }
 #else
-#if defined(__APPLE__) && defined(__aarch64__)
-  if (r->mechanism == (int)kMechMapJit) {
-    pthread_jit_write_protect_np(0);
-    r->writable = 1;
-    return kJcCodeOk;
-  }
-#endif
   if (r->mechanism == (int)kMechMprotect) {
     if (mprotect(r->write, r->size, PROT_READ | PROT_WRITE) != 0) {
       return kJcCodeNotWritable;

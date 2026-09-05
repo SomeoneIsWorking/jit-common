@@ -113,6 +113,13 @@ void jc_code_region_destroy(JcCodeRegion *r);
  */
 JcCodeStatus jc_code_publish(JcCodeRegion *r, size_t bytes_written);
 
+/* Publish only [offset, offset + bytes_written), retaining whole-region W^X
+ * transitions. Use for appended blocks or patched instructions: publishing
+ * every preceding block again makes append-only JIT compilation quadratic.
+ * Both bounds are checked without integer overflow. A zero-byte range closes
+ * a write window without publishing any newly executable instructions. */
+JcCodeStatus jc_code_publish_range(JcCodeRegion *r, size_t offset, size_t bytes_written);
+
 /*
  * Make it writable again, to patch a chained branch or an inline cache.
  *
@@ -120,6 +127,9 @@ JcCodeStatus jc_code_publish(JcCodeRegion *r, size_t bytes_written);
  * thread that patches must be the thread that publishes. Cross-thread patching
  * needs its own design and is deliberately not offered here rather than being
  * silently wrong.
+ * Call before writing a region whenever any region has been published on this
+ * thread; a region's writable flag cannot track other regions' thread-wide
+ * protection changes.
  */
 JcCodeStatus jc_code_begin_write(JcCodeRegion *r);
 
