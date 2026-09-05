@@ -159,8 +159,9 @@ narrow executor around Xenia `Memory`, `Processor`, `ThreadState`, `RawModule`,
 typed imports, device-memory callbacks, runtime overrides, and original calls.
 Account explicitly for Xenia's process-global memory/MMIO/clock assumptions.
 
-The former shared Xbox host has been migrated in place into `x360port`, carrying
-forward only its useful authenticated-image and import-validation contracts. Do
+The former shared Xbox host has been migrated in place into `x360port` (committed
+revision `84bb697`), carrying forward only its useful authenticated-image,
+import-validation, and synthetic Xenia x64 execution contracts. Do
 not reintroduce its precomputed generated function map or title-owned concrete
 PPC ABI; no separate host owner remains.
 
@@ -191,11 +192,13 @@ not a source, build, runtime, or distribution dependency.
 
 MUA is an Alchemy title, not a UE3 title. Its dependency is
 `MUA -> x360port -> Xenia`, plus `MUA -> shared/alchemy` for native engine
-services. MUA's dynarec migration is active now. Only its Alchemy adoption waits
-for X-Men 2 to prove the corresponding shared contracts; MUA does not build a
-second title-local Alchemy engine and never depends on `x360ue3` or `GearsUE3`.
-When that gate opens, MUA links Alchemy's x360 adapter; it does not make the
-neutral Alchemy core depend directly on Xenia or `x360port`.
+services. MUA title gameplay migration is deferred until every X-Men 2 goal
+passes. Cleanup of its removed static product and shared-foundation work may
+continue; that work must not be reported as title gameplay progress. Only after
+the deferral lifts does MUA consume the proven Alchemy contracts through the
+x360 adapter; it does not build a second title-local Alchemy engine and never
+depends on `x360ue3` or `GearsUE3`. The neutral Alchemy core does not depend
+directly on Xenia or `x360port`.
 
 ### 4. GameCube: build `gcnport` around Dolphin
 

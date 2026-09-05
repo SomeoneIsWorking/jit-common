@@ -33,7 +33,7 @@ project-local plans before any further runtime implementation.
 | S013 | Obsolete `shared/recomp-x86` is removed after all consumers leave it | verified | — | G005 |
 | S014 | `shared/alchemy` is one product-ready neutral engine with separately linked x86/x360 platform adapters and typed configuration/logging boundaries | partial | — | G007 |
 | S015 | X-Men 2 links and calls a proven `shared/alchemy` contract through its x86 adapter in representative gameplay | missing | S014 | G007 |
-| S020 | `psxport` owns a per-`Core` PSX dynarec, counted refused-block fallback, runtime overrides, scoped original calls, bounded exits, and code invalidation | missing | S005 | G001, G002, G004 |
+| S020 | `psxport` owns a per-`Core` PSX dynarec, counted refused-block fallback, runtime overrides, scoped original calls, bounded exits, and code invalidation | partial | S005 | G001, G002, G004 |
 | S021 | Tomba! 2 reaches its current gameplay frontier through `psxport` with no generated corpus | missing | S020 | G001, G003 |
 | S022 | Tomba! 1 reaches its current frontier through `psxport` with no generated corpus | missing | S020 | G001, G003 |
 | S023 | Crash Bandicoot reaches its current frontier through `psxport` with no generated corpus | missing | S020 | G001, G003 |
@@ -46,20 +46,20 @@ project-local plans before any further runtime implementation.
 | S030 | Toy Story 2 reaches its current frontier through `psxport` with no generated corpus | missing | S020 | G001, G003 |
 | S031 | Vagrant Story reaches its current frontier through `psxport` with no generated corpus | missing | S020 | G001, G003 |
 | S032 | C-12 reaches its current frontier through `psxport` with no generated corpus | missing | S020 | G001, G003 |
-| S040 | `x360port` executes Xbox 360 guest code through Xenia's x64/A64 dynarecs and owns runtime native-call boundaries | missing | S005 | G001, G002, G004, G008 |
+| S040 | `x360port` executes Xbox 360 guest code through Xenia's x64/A64 dynarecs and owns runtime native-call boundaries | partial | S005 | G001, G002, G004, G008 |
 | S041 | Gears of War reaches its current frontier through `x360port` and `x360ue3`, with the static PPC pipeline absent | missing | S040, S045 | G001, G003, G008 |
 | S042 | Marvel: Ultimate Alliance reaches its current frontier through `x360port` with the static PPC pipeline absent | missing | S040 | G001, G003, G008 |
 | S043 | The former shared Xbox host is replaced in-place by `x360port` without a generated-function-map contract | verified | — | G002, G005, G008 |
 | S044 | MUA consumes and extends the Alchemy contracts proved by X-Men 2 without creating a parallel title-local engine | missing | S015, X-Men 2 complete goals | G007 |
 | S045 | `x360ue3` provides a clean title-neutral UE3-on-Xbox-360 layer between `x360port` and `GearsUE3` | missing | S040 | G008 |
-| S050 | `gcnport` executes GameCube guest code through Dolphin's dynarec and owns robust runtime hooks | missing | S005 | G001, G002, G004 |
+| S050 | `gcnport` executes GameCube guest code through Dolphin's dynarec and owns robust runtime hooks | partial | S005 | G001, G002, G004 |
 | S051 | Sunbright reaches its current frontier through `gcnport` with its generated corpus removed | missing | S050 | G001, G003 |
 | S060 | Kirbh has one clean `gbaport` native/emulator product architecture | missing | S005 | G001, G002, G006 |
 | S061 | Kirbh provides drop-in split-screen multiplayer | missing | S060 | G003, G006 |
 | S062 | Kirbh provides a wider gameplay camera without final-image stretching | missing | S060 | G003, G006 |
-| S070 | `amigaport` owns a maintained 68000 interpreter with image-scoped identity and complete CPU state | missing | S005 | G001, G002 |
+| S070 | `amigaport` owns a maintained 68000 interpreter with image-scoped identity and complete CPU state | partial | S005 | G001, G002 |
 | S071 | Benefactor reaches its current frontier through `amigaport` with its generated corpus removed | missing | S070 | G001, G003 |
-| S080 | `nesport` owns a maintained 6502 interpreter with physical MMC3 mapping identity and complete execution state | missing | S005 | G001, G002 |
+| S080 | `nesport` owns a maintained 6502 interpreter with physical MMC3 mapping identity and complete execution state | partial | S005 | G001, G002 |
 | S081 | Mimp reaches its current frontier through `nesport` with its generated corpus removed | missing | S080 | G001, G003 |
 
 Every title-completion item above includes the representative interactive
@@ -150,12 +150,12 @@ was moved to the desktop trash on 2026-09-04 rather than retained as legacy.
 
 ### S014 — shared Alchemy engine readiness
 
-Existing `shared/alchemy` targets provide partial format/render-data/input
-libraries and XMLB/ARK tooling. Gap: its shipping library still carries
-X2-specific viewer vocabulary, environment reads, and direct stderr diagnostics,
-and no gameplay consumer proves a stable runtime API. Introduce typed config and
-logger boundaries, one dependency pin/resolver authority, and focused stateful
-engine owners without rewriting proven C parsers for style alone. Keep one
+At committed `shared/alchemy` revision `123566b` ([canonical state](../../alchemy/docs/project-state.md)),
+format/render-data/input libraries and XMLB/ARK tooling remain partial, while
+the shipping configuration, diagnostics, language, and dependency boundaries
+are verified by its S013 gate. Gap: no gameplay consumer proves a stable
+runtime API, and each consumer still needs one immutable runtime/tooling pin.
+Keep one
 repository: the neutral `shared` component must depend on neither execution
 framework, while optional `x86` and `x360` adapters consume `x86port` and
 `x360port` respectively and are never linked together merely because they
@@ -171,10 +171,14 @@ DirectInput path during representative gameplay.
 
 ### S020 — psxport dynarec executor
 
-Missing capability: integrate the already-proven PSX dynarec as a per-`Core`
-product executor with image-scoped overrides, original calls, bounded exits,
-state synchronization, and executable-memory invalidation. The gameplay target
-must not link the existing test interpreter.
+Partial capability at committed `psx/psxport` revision `992dbfb2` ([canonical state](../../../psx/psxport/docs/project-state.md))
+with its Lightrec fork at `b1457137`: the synthetic shipping executor runs nonzero
+translated blocks, transfers architectural state, counts reason-coded bounded
+fallback, routes scoped original calls, and invalidates changed executable
+ranges. The product boundary excludes offline guest generation and a selectable
+interpreter. Gap: no real title has yet passed the integrated native-service,
+representative-gameplay, or AArch64 gates. This entry intentionally cites only
+committed HEAD evidence.
 
 ### S021 — Tomba! 2
 
@@ -204,8 +208,10 @@ the runtime executor and reach the current Crash Bash path without generated C.
 
 ### S026 — Spider-Man
 
-Missing capability: reach the dem1 checkpoint through the PSX dynarec and
-replace the generated movie-fiber body with resumable runtime guest execution.
+Missing capability: `psx/spider1` revision `84a3ac25` ([canonical state](../../../psx/spider1/docs/project-state.md)) has a partial native/Lightrec
+composition and a title-local route that reaches `dem1`, but it has not reached
+that checkpoint through Lightrec. Representative gameplay and resumable
+runtime guest execution remain unverified.
 
 ### S027 — Spyro
 
@@ -214,13 +220,17 @@ replace the generated world body with runtime guest execution.
 
 ### S028 — Mega Man X4
 
-Missing capability: reach the 4,000-field frontier through the PSX dynarec and
-replace generated movie-body rewriting with authenticated runtime VSync exits.
+Missing capability: `psx/megamanx4` revision `75630ba` ([canonical state](../../../psx/megamanx4/docs/project-state.md)) records the native/Lightrec
+target and measured native field-service seams, but no committed product run
+reaches the 4,000-field frontier through Lightrec. Authenticated runtime VSync
+interception and representative gameplay remain unverified.
 
 ### S029 — Tekken 3
 
-Missing capability: reach `NAMCO PRESENTS` within 1,200 frames through the PSX
-dynarec with all 14 original calls routed by address.
+Missing capability: `psx/tekken3` revision `7d8b0e5` ([canonical state](../../../psx/tekken3/docs/project-state.md)) retains deterministic
+entry/CD evidence and the native/Lightrec target, but no committed product run
+reaches `NAMCO PRESENTS` through the dynarec with all 14 original calls. The
+representative gameplay gate remains unverified.
 
 ### S030 — Toy Story 2
 
@@ -239,9 +249,13 @@ VSync/former static miss through the PSX dynarec with no generated corpus.
 
 ### S040 — x360port executor
 
-Missing capability: wrap Xenia's existing x64/A64 dynarecs in a title-neutral
-executor owning authenticated images, contexts, threads, imports, device writes,
-runtime overrides, original calls, and singleton constraints.
+Partial capability at committed `shared/x360port` revision `84bb697` ([canonical state](../../x360port/docs/project-state.md)): the
+title-neutral context authenticates and registers a synthetic Xenia `RawModule`,
+executes authenticated PPC through Xenia's x64 dynarec, and crosses typed
+function/variable imports. Gap: runtime device callbacks, overrides/original
+calls, executable-write invalidation, A64 host qualification, and real-title
+gameplay remain missing. This is synthetic framework evidence, not Xbox title
+evidence.
 
 ### S041 — Gears of War
 
@@ -253,19 +267,23 @@ semantics through `x360ue3`, and reach the current Gears frontier through
 
 ### S042 — Marvel: Ultimate Alliance
 
-Missing capability: delete MUA's unfinished static product surfaces first,
-then execute exact Gold XEX entry `0x824806D8` through `x360port`/Xenia to a
-named service boundary while preserving its exact provisioning evidence. MUA
-does not use `x360ue3`.
+Missing capability: MUA's static product surfaces are already removed at
+committed revision `c976a92` ([canonical state](../../../x360/mua/docs/project-state.md));
+the remaining title gameplay migration must execute exact Gold XEX entry
+`0x824806D8` through `x360port`/Xenia to a named service boundary while
+preserving its provisioning evidence. MUA title gameplay is deferred until
+every X-Men 2 goal passes; cleanup and shared-foundation work may continue.
+MUA does not use `x360ue3`.
 
 ### S043 — x360port replacement
 
 Evidence: the predecessor repository was migrated in place to `shared/x360port`
-at commit `538c51f`, its GitHub repository and local checkout were renamed, and
+at committed revision `84bb697` (following the predecessor migration), its
+GitHub repository and local checkout were renamed, and
 its old host runner, standalone guest memory, static dispatch ABI, title adapter,
-and generated-function-map ownership were deleted. The remaining verified
-library is explicitly `x360port_validation`; it cannot be mistaken for an Xenia
-executor, which remains missing under S040.
+and generated-function-map ownership were deleted. S040 now records the partial
+Xenia executor: synthetic x64 execution and typed imports are present, while the
+remaining device, override, invalidation, A64, and title gates are open.
 
 ### S044 — MUA shared Alchemy consumption
 
@@ -288,8 +306,12 @@ runtime, or distribution dependency.
 
 ### S050 — gcnport executor
 
-Missing capability: integrate Dolphin's dynarec behind a title-neutral GameCube
-executor with robust address hooks, runtime invalidation, and host qualification.
+Partial capability at committed `shared/gcnport` revision `70ec0b0` ([canonical state](../../gcnport/docs/project-state.md)): the
+framework policy, authenticated hook/original state machine, and synthetic
+Dolphin JIT cold/cache/hook/invalidation execution are verified on hosted
+desktop targets. Gap: six of eleven embedding-contract operations, typed
+fallback, and a complete shipping adapter remain missing; this does not qualify
+Sunbright gameplay.
 
 ### S051 — Sunbright
 
@@ -317,9 +339,12 @@ image or using frame-aware heuristics.
 
 ### S070 — amigaport executor
 
-Missing capability: integrate a maintained 68000 interpreter with complete
-PC/SR/exception state, bounded execution, active-image identity, and scoped
-native/original calls, then qualify representative gameplay on each host.
+Partial capability at committed `shared/amigaport` revision `3233479` ([canonical state](../../amigaport/docs/project-state.md)): the
+maintained PUAE owner exposes the callback-driven CPU boundary, image-scoped
+native/original dispatch, and bounded telemetry, with focused synthetic tests
+covering the legal opcode table and core state. Gap: exact bus/address-error
+frame construction and device-reset conformance remain open; no Benefactor
+gameplay evidence exists.
 
 ### S071 — Benefactor
 
@@ -329,9 +354,11 @@ native calls.
 
 ### S080 — nesport executor
 
-Missing capability: integrate a maintained 6502 interpreter with complete
-PC/status/interrupt/cycle state and override identity based on physical MMC3
-ROM mapping, then qualify representative gameplay on each host.
+Partial capability at committed `shared/nesport` revision `4f6c00c` ([canonical state](../../nesport/docs/project-state.md)): the
+maintained MesenCE dependency, complete machine-state boundary, physical
+MMC3-scoped dispatch, and synthetic runtime tests are present. Gap: host
+portability and a real user-supplied ROM's representative gameplay remain
+unverified.
 
 ### S081 — Mimp
 
