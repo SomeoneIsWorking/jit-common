@@ -21,6 +21,13 @@ bridge, or proof of a missing host backend. NES/GBA/Amiga may deliberately use
 an interpreter as their default CPU only after representative gameplay—not boot,
 menus, logos, or video—meets the correctness/performance budget on each host.
 
+WebAssembly is part of the migration release contract for affected projects: each
+project in this plan must also provide browser-capable WASM execution through the
+same shipping runtime and discovery path (dynarec-first, bounded fallback only for
+diagnostic needs). The web target is not a separate emulator path; it must share
+the same representative-coverage and runtime metrics model as desktop/Android and
+record a blocker if parity is not yet reachable.
+
 “No static recompilation” means no offline, build-time, install-time, or
 provisioning-time emission of guest code as C/C++, object code, or a precompiled
 title substrate. Runtime JIT code generation is the required mechanism, not the
@@ -72,6 +79,10 @@ After that break-first change, one bounded dynamic milestone must prove:
   blocks/instructions by reason, and reaches the discriminator primarily through
   JIT execution; or a low-power interpreter-class product meets its declared
   representative-gameplay correctness and performance budget;
+- browser/WASM delivery is planned and measurable under the same execution
+  boundaries: build/run path exists, the same dynarec-first fallback discipline is
+  enforced, and representative interactive gameplay can be reached at least as a
+  separate release prerequisite item;
 - native overrides and an override-bypassing original call both run through the
   shipping dispatcher;
 - relevant overlay/bank/self-modifying-code invalidation is exercised with a

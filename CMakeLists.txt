@@ -14,11 +14,18 @@ else()
   set(JC_WARN_FLAGS -Wall -Wextra -Werror)
 endif()
 
-add_library(jitcommon STATIC
-  src/jitcommon/code_memory.cpp
-  src/jitcommon/block_cache.cpp)
-target_include_directories(jitcommon PUBLIC src/jitcommon)
-target_compile_options(jitcommon PRIVATE ${JC_WARN_FLAGS})
+add_library(jitcommon_cache STATIC src/jitcommon/block_cache.cpp)
+target_include_directories(jitcommon_cache PUBLIC src/jitcommon)
+target_compile_options(jitcommon_cache PRIVATE ${JC_WARN_FLAGS})
+
+# WebAssembly publishes modules, not executable byte buffers. Its consumers
+# link the portable cache independently and never acquire a fake code region.
+if(NOT EMSCRIPTEN)
+  add_library(jitcommon STATIC src/jitcommon/code_memory.cpp)
+  target_include_directories(jitcommon PUBLIC src/jitcommon)
+  target_compile_options(jitcommon PRIVATE ${JC_WARN_FLAGS})
+  target_link_libraries(jitcommon PUBLIC jitcommon_cache)
+endif()
 
 # Tests belong to THIS project, not to whoever consumes it. A repo that pulls
 # jit-common in with add_subdirectory would otherwise inherit these tests into
@@ -31,13 +38,15 @@ endif()
 
 enable_testing()
 
-add_executable(test_code_memory tests/test_code_memory.cpp)
-target_link_libraries(test_code_memory PRIVATE jitcommon)
-target_compile_options(test_code_memory PRIVATE ${JC_WARN_FLAGS})
-add_test(NAME test_code_memory COMMAND test_code_memory)
+if(NOT EMSCRIPTEN)
+  add_executable(test_code_memory tests/test_code_memory.cpp)
+  target_link_libraries(test_code_memory PRIVATE jitcommon)
+  target_compile_options(test_code_memory PRIVATE ${JC_WARN_FLAGS})
+  add_test(NAME test_code_memory COMMAND test_code_memory)
+endif()
 
 add_executable(test_block_cache tests/test_block_cache.cpp)
-target_link_libraries(test_block_cache PRIVATE jitcommon)
+target_link_libraries(test_block_cache PRIVATE jitcommon_cache)
 target_compile_options(test_block_cache PRIVATE ${JC_WARN_FLAGS})
 add_test(NAME test_block_cache COMMAND test_block_cache)
 

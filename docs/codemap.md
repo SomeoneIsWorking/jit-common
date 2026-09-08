@@ -11,7 +11,7 @@ acceptance gates belong in `docs/migration.md`.
 | Portfolio capability status and current focus | State authority | `docs/project-state.md` | `docs/project-state.md` |
 | Atomic migration work and findings | Issue catalog | `docs/issues/` | One issue under `docs/issues/` |
 | Guest-neutral executable-memory allocation, bounded range publication, and write-window ownership | `jit-common` code-memory module | `src/jitcommon/code_memory.{h,cpp}` | Same cohesive module and its tests |
-| Guest-neutral address-to-block container | `jit-common` block-cache module | `src/jitcommon/block_cache.{h,cpp}` | Same cohesive module and its tests |
+| Guest-neutral address-to-block container | `jit-common` block-cache module | `src/jitcommon/block_cache.{h,cpp}`, portable `jitcommon_cache` target | Same cohesive module and its tests |
 | Public library source tree and build composition | `jit-common` library | `src/`, `CMakeLists.txt` | The smallest cohesive module under `src/jitcommon/` |
 | Product-facing library verification | Test suite | `tests/` | The test file for the production module under test |
 | Repository maintenance and verification entry points | Tooling | `tools/` | A cohesive Python tool; broadly reusable tools move to the canonical shared harness repository |
