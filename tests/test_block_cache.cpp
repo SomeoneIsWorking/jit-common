@@ -141,10 +141,10 @@ static void test_nothing_is_stranded_by_deletion(void) {
 
   for (round = 0; round < 300; round++) {
     rng = rng * 6364136223846793005ull + 1442695040888963407ull;
-    if ((rng >> 60) < 10) {
+    if ((rng >> 60u) < 10) {
       /* Invalidate a random range, in guest-address terms. */
-      uint64_t lo_i = (rng >> 16) % kSlots;
-      uint64_t span = 1u + ((rng >> 32) % 24u);
+      uint64_t lo_i = (rng >> 16u) % kSlots;
+      uint64_t span = 1u + ((rng >> 32u) % 24u);
       uint64_t hi_i = lo_i + span;
       JcGuestAddr lo = 0x2000u + lo_i * 16u;
       JcGuestAddr hi = 0x2000u + hi_i * 16u;
@@ -166,7 +166,7 @@ static void test_nothing_is_stranded_by_deletion(void) {
         }
       }
     } else {
-      int idx = (int)((rng >> 20) % kSlots);
+      int idx = (int)((rng >> 20u) % kSlots);
       if (!present[idx]) {
         if (jc_block_insert(c, 0x2000u + (JcGuestAddr)idx * 16u, fake_host((uint64_t)idx), 16)) {
           present[idx] = 1;

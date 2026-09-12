@@ -295,6 +295,9 @@ JcCodeStatus jc_code_region_create(size_t size, JcCodeRegion *out, char *reason,
 
 #if defined(__APPLE__) && defined(__aarch64__)
   if (m == kMechMapJit) {
+    // Apple MAP_JIT requires this mapping; pthread_jit_write_protect_np keeps
+    // the calling thread's write and execute permissions mutually exclusive.
+    // NOLINTNEXTLINE(clang-analyzer-security.MmapWriteExec)
     void *p = mmap(NULL, bytes, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS | MAP_JIT, -1, 0);
     if (p == MAP_FAILED) {
       say(reason,

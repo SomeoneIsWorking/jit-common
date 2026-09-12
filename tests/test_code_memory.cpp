@@ -87,7 +87,7 @@ static size_t emit_return_constant(unsigned char *p, unsigned value) {
   /* MOVZ W0, #imm16 -- the constants used here all fit in 16 bits, which the
      caller must respect; a wider one would need a second MOVK and would make
      this helper lie about what it emitted. */
-  unsigned movz = 0x52800000u | ((value & 0xFFFFu) << 5);
+  unsigned movz = 0x52800000u | ((value & 0xFFFFu) << 5u);
   unsigned ret = 0xD65F03C0u;
   memcpy(p, &movz, 4);
   memcpy(p + 4, &ret, 4);
