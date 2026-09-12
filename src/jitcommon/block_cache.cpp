@@ -27,10 +27,10 @@ namespace {
 static size_t round_up_pow2(size_t n) {
   size_t p = 1;
   while (p < n) {
-    if (p > (SIZE_MAX >> 1)) {
+    if (p > (SIZE_MAX >> 1u)) {
       return 0;
     }
-    p <<= 1;
+    p <<= 1u;
   }
   return p;
 }
