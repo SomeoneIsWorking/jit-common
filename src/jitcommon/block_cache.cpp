@@ -14,9 +14,15 @@
  * every block on those platforms into a quarter of the table. The multiply
  * spreads that structure upward. It is also two instructions to emit.
  */
+extern "C" {
+
 uint64_t jc_block_hash(JcGuestAddr guest) {
   return (uint64_t)guest * JC_HASH_MULT;
 }
+
+} // extern "C"
+
+namespace {
 
 static size_t round_up_pow2(size_t n) {
   size_t p = 1;
@@ -40,6 +46,10 @@ static unsigned log2_size(size_t n) {
 static size_t home_slot(const JcBlockCache *c, JcGuestAddr guest) {
   return (size_t)(jc_block_hash(guest) >> c->shift);
 }
+
+} // namespace
+
+extern "C" {
 
 JcBlockCache *jc_block_cache_create(size_t capacity) {
   JcBlockCache *c;
@@ -92,8 +102,8 @@ void jc_block_cache_destroy(JcBlockCache *c) {
   free(c);
 }
 
-void *jc_block_lookup_slow(JcBlockCache *c, JcGuestAddr guest, size_t initial_slot) {
-  size_t i = initial_slot;
+void *jc_block_lookup_slow(JcBlockCache *c, JcGuestAddr guest, JcBlockSlot initial_slot) {
+  size_t i = initial_slot.index;
   uint64_t probes = 1;
   for (;;) {
     probes++;
@@ -158,6 +168,10 @@ int jc_block_insert(JcBlockCache *c, JcGuestAddr guest, void *host, uint32_t gue
   return 0;
 }
 
+} // extern "C"
+
+namespace {
+
 /*
  * Remove the entry at `hole`, then shift back any entry that probed past it.
  *
@@ -192,6 +206,10 @@ static void remove_at(JcBlockCache *c, size_t hole) {
     hole = j;
   }
 }
+
+} // namespace
+
+extern "C" {
 
 size_t jc_block_invalidate_range(JcBlockCache *c, JcGuestAddr lo, JcGuestAddr hi) {
   size_t dropped = 0;
@@ -325,3 +343,5 @@ void jc_block_table_layout(const JcBlockCache *c, JcBlockTableLayout *out) {
   out->hash_mult = JC_HASH_MULT;
   out->hash_shift = c->shift;
 }
+
+} // extern "C"

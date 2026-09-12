@@ -42,14 +42,21 @@ extern "C" {
 /* Outcomes, named. A caller that cannot tell "the kernel refused execute
    permission" from "we asked for too much memory" cannot report anything
    useful, and those two want opposite responses from the user. */
-typedef enum JcCodeStatus {
+/* The C ABI returns an int-sized status on every supported host. Keep that
+ * width explicit even though the named values fit in a byte. */
+typedef int JcCodeStatus;
+#ifdef __cplusplus
+enum : unsigned char {
+#else
+enum {
+#endif
   kJcCodeOk = 0,
   kJcCodeBadArgument,
   kJcCodeNoMemory,
   kJcCodeNoExecutePermission, /* the host's policy refused, not a resource limit */
   kJcCodeNotWritable,         /* publish/unpublish sequencing was violated */
   kJcCodeStatusCount          /* MUST stay last */
-} JcCodeStatus;
+};
 
 const char *jc_code_status_name(JcCodeStatus s);
 
