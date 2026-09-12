@@ -15,7 +15,7 @@ library's scope.
 - **No Android SDK / SDL / JNI dependency.** The executable-memory code uses
   plain OS primitives (`memfd_create`, `mmap`, `mprotect`, cache-flush
   intrinsics) only. Android build/device mechanics belong in
-  `shared/android-port`; title-neutral APK runtime behavior belongs in Lucent.
+  `shared/android-port`; Lucent supplies only optional helper APIs.
 - **One gameplay product:** PSX, x86, GameCube, and Xbox 360 use native overrides
   plus a dynarec/JIT by default, with only reason-coded and measured
   DuckStation-style interpreter fallback. NES, GBA, and Amiga may instead use a

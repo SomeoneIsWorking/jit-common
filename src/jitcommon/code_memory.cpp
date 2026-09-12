@@ -2,6 +2,7 @@
 #include "code_memory.h"
 
 #include <stdarg.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -22,9 +23,15 @@
 #endif
 #endif
 
-static const char *kStatusNames[] = {"ok", "bad-argument", "no-memory", "no-execute-permission", "not-writable"};
+namespace {
+
+const char *const kStatusNames[] = {"ok", "bad-argument", "no-memory", "no-execute-permission", "not-writable"};
 static_assert((int)(sizeof kStatusNames / sizeof kStatusNames[0]) == (int)kJcCodeStatusCount,
               "every JcCodeStatus needs a name");
+
+} // namespace
+
+extern "C" {
 
 const char *jc_code_status_name(JcCodeStatus s) {
   if ((unsigned)s >= (unsigned)kJcCodeStatusCount) {
@@ -32,6 +39,10 @@ const char *jc_code_status_name(JcCodeStatus s) {
   }
   return kStatusNames[(int)s];
 }
+
+} // extern "C"
+
+namespace {
 
 /*
  * Which mechanism this host permits.
@@ -43,7 +54,7 @@ const char *jc_code_status_name(JcCodeStatus s) {
  * this at compile time is correct on the machine it was built on and wrong on
  * the one it ships to, which is the whole problem.
  */
-typedef enum Mechanism {
+typedef enum Mechanism : uint8_t {
   kMechUnresolved = 0,
   kMechMprotect, /* anonymous mapping, flipped RW <-> RX in place */
   kMechDualMap,  /* one memfd mapped twice: RW here, RX there */
@@ -182,6 +193,10 @@ static Mechanism mechanism(void) {
   }
   return g_mechanism;
 }
+
+} // namespace
+
+extern "C" {
 
 const char *jc_code_mechanism(void) {
   return mechanism_name(mechanism());
@@ -464,3 +479,5 @@ JcCodeStatus jc_code_begin_write(JcCodeRegion *r) {
   r->writable = 1;
   return kJcCodeOk;
 }
+
+} // extern "C"

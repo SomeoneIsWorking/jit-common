@@ -35,7 +35,18 @@ should read them:
 Validate the ledger after every edit:
 
 ```sh
-python3 ../re-harness/project_state.py --root .
+python3 ../re-harness/tools/project_state.py --root .
+```
+
+Maintainer verification uses Clang and the shared C++ policy checker from a
+sibling `re-harness` checkout. Hosted CI fetches its pinned revision under
+`build/deps/re-harness`. The normal CTest run checks behavior, formatting,
+clang-tidy, and C++ ownership against the configured compile database:
+
+```sh
+cmake -S . -B build/verify -G Ninja -DCMAKE_CXX_COMPILER=clang++
+cmake --build build/verify
+ctest --test-dir build/verify --output-on-failure
 ```
 
 ## Status

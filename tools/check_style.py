@@ -10,12 +10,8 @@ from "everything passed" unless the count is printed. So this prints the
 denominator on every run and REFUSES when it is zero or when either tool is
 missing, rather than passing quietly.
 
-Scope note: `psx/psxport/tools/check_cpp_style.py` is a larger gate over the same
-two tools, and adds structure caps and tracked-config validation. jit-common is
-its second would-be consumer, so under the global "put it in shared/ the first
-time" rule that script wants extracting to `shared/re-harness/tools/` with both
-repos migrated atomically -- see docs/issues/I005. This file is deliberately the
-minimum until that lands, not a fork of it.
+The shared C++ policy tool audits the tracked tool configurations and checks
+ownership syntax in Clang's parsed AST using this build's compile database.
 """
 
 import argparse
@@ -25,6 +21,18 @@ import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
+CPP_POLICY_CANDIDATES = (
+    REPO.parent / "re-harness" / "tools" / "cpp_policy.py",
+    REPO / "build" / "deps" / "re-harness" / "tools" / "cpp_policy.py",
+)
+
+
+def shared_cpp_policy() -> Path:
+    for candidate in CPP_POLICY_CANDIDATES:
+        if candidate.is_file():
+            return candidate
+    tried = ", ".join(str(path) for path in CPP_POLICY_CANDIDATES)
+    sys.exit(f"REFUSED: shared C++ policy tool is missing; tried {tried}")
 
 
 def tracked_sources() -> list[Path]:
@@ -90,6 +98,29 @@ def check_tidy(build: Path) -> int:
     return bad
 
 
+def check_cpp_policy(build: Path) -> int:
+    cpp_policy = shared_cpp_policy()
+    commands = (
+        [sys.executable, str(cpp_policy), "--audit-config", str(REPO)],
+        [
+            sys.executable,
+            str(cpp_policy),
+            "--compile-commands",
+            str(build / "compile_commands.json"),
+            "--root",
+            str(REPO),
+        ],
+    )
+    failures = 0
+    for command in commands:
+        result = subprocess.run(command, capture_output=True, text=True)
+        sys.stdout.write(result.stdout)
+        sys.stderr.write(result.stderr)
+        if result.returncode:
+            failures += 1
+    return failures
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--build", default=str(REPO / "build"), help="CMake build dir")
@@ -102,7 +133,8 @@ def main() -> int:
             "files is not a passing gate."
         )
 
-    failures = check_format(files) + check_tidy(Path(args.build))
+    build = Path(args.build).resolve()
+    failures = check_format(files) + check_tidy(build) + check_cpp_policy(build)
     if failures:
         print(f"STYLE GATE FAILED: {failures} finding(s)", file=sys.stderr)
         return 1

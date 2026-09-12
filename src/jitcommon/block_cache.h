@@ -103,8 +103,13 @@ typedef struct JcBlockCache {
 JcBlockCache *jc_block_cache_create(size_t capacity);
 void jc_block_cache_destroy(JcBlockCache *c);
 
+/* Keep a table slot distinct from a guest address at the C ABI boundary. */
+typedef struct JcBlockSlot {
+  size_t index;
+} JcBlockSlot;
+
 /* Slow path for collision probes. */
-void *jc_block_lookup_slow(JcBlockCache *c, JcGuestAddr guest, size_t initial_slot);
+void *jc_block_lookup_slow(JcBlockCache *c, JcGuestAddr guest, JcBlockSlot initial_slot);
 
 /*
  * The hot path. Returns the host code address, or NULL if this guest address
@@ -127,7 +132,8 @@ static inline void *jc_block_lookup(JcBlockCache *c, JcGuestAddr guest) {
     c->stats.probe_length_total++;
     return NULL;
   }
-  return jc_block_lookup_slow(c, guest, i);
+  JcBlockSlot initial_slot = {i};
+  return jc_block_lookup_slow(c, guest, initial_slot);
 }
 
 /*

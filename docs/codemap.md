@@ -14,7 +14,7 @@ acceptance gates belong in `docs/migration.md`.
 | Guest-neutral address-to-block container | `jit-common` block-cache module | `src/jitcommon/block_cache.{h,cpp}`, portable `jitcommon_cache` target | Same cohesive module and its tests |
 | Public library source tree and build composition | `jit-common` library | `src/`, `CMakeLists.txt` | The smallest cohesive module under `src/jitcommon/` |
 | Product-facing library verification | Test suite | `tests/` | The test file for the production module under test |
-| Repository maintenance and verification entry points | Tooling | `tools/` | A cohesive Python tool; broadly reusable tools move to the canonical shared harness repository |
+| Repository maintenance and verification entry points | Tooling | `tools/check_style.py` composes local format/tidy checks and `../re-harness/tools/cpp_policy.py` | A cohesive Python tool; broadly reusable checks belong in the canonical shared harness repository |
 | CPU decode, semantics, code emission, scheduling exits, image identity, and invalidation policy | The relevant platform framework | Outside this repository | `psxport`, `x86port`, `x360port`, `gcnport`, `gbaport`, `amigaport`, or `nesport` |
 | Embedded-core executable memory and translated-block cache | The embedded core | Lightrec, Xenia, or Dolphin integration | Its maintained fork/integration; never a duplicate `jit-common` wrapper |
 | Game identity, native overrides, native subsystems, and title policy | The consuming title | Each game repository | The title's smallest owning module |

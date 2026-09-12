@@ -19,6 +19,11 @@
 #include <stdio.h>
 #include <string.h>
 
+namespace {
+
+constexpr int kMappingRounds = 64;
+const char *const kMechanisms[] = {"mprotect", "dual-mapped memfd"};
+
 static int g_checks;
 static int g_failed;
 static int g_test_failed;
@@ -100,12 +105,15 @@ typedef unsigned (*ConstFn)(void);
    worked using the mechanism the user's machine will pick" are different
    claims, and a run that does not say which one it made is not evidence. */
 static void test_mechanism_is_named(void) {
-  const char *m = jc_code_mechanism();
-  CHECK(m != NULL);
-  printf("    mechanism: %s   host: %s\n", m, HOST_NAME);
+  const char *mechanism = jc_code_mechanism();
+  CHECK(mechanism != NULL);
+  if (mechanism == NULL) {
+    return;
+  }
+  printf("    mechanism: %s   host: %s\n", mechanism, HOST_NAME);
   /* "unresolved" would mean the probe never ran, which makes every other
      result in this file meaningless. */
-  CHECK(strcmp(m, "unresolved") != 0);
+  CHECK(strcmp(mechanism, "unresolved") != 0);
 }
 
 #if HAVE_HOST_CODE
@@ -348,7 +356,6 @@ static void test_destroy_releases_every_mapping(void) {
   long before;
   long after;
   int i;
-  const int rounds = 64;
 
   (void)jc_code_region_create(4096, NULL, NULL, 0); /* warm any lazy state */
   before = mapping_count();
@@ -356,7 +363,7 @@ static void test_destroy_releases_every_mapping(void) {
     printf("    SKIP -- /proc/self/maps unreadable, so no leak check ran\n");
     return;
   }
-  for (i = 0; i < rounds; i++) {
+  for (i = 0; i < kMappingRounds; i++) {
     JcCodeRegion r;
     if (jc_code_region_create(4096, &r, NULL, 0) != kJcCodeOk) {
       CHECK(0);
@@ -365,10 +372,10 @@ static void test_destroy_releases_every_mapping(void) {
     jc_code_region_destroy(&r);
   }
   after = mapping_count();
-  printf("    mappings before %ld, after %d create/destroy rounds %ld\n", before, rounds, after);
+  printf("    mappings before %ld, after %d create/destroy rounds %ld\n", before, kMappingRounds, after);
   /* Exact equality is too strict -- the allocator may legitimately split or
      merge a vma -- but leaking one mapping per round would show as ~64. */
-  CHECK(after - before < rounds / 4);
+  CHECK(after - before < kMappingRounds / 4);
 }
 #endif
 
@@ -400,21 +407,20 @@ static void run_battery(void) {
 }
 
 static void test_every_available_mechanism(void) {
-  static const char *const mechanisms[] = {"mprotect", "dual-mapped memfd"};
-  const int n = (int)(sizeof mechanisms / sizeof mechanisms[0]);
+  int n = (int)(sizeof kMechanisms / sizeof kMechanisms[0]);
   int covered = 0;
   int i;
   jc_code_select_mechanism(NULL);
   printf("  -- through default %s:\n", jc_code_mechanism());
   run_battery();
   for (i = 0; i < n; i++) {
-    if (!jc_code_select_mechanism(mechanisms[i])) {
-      printf("  -- %s: NOT AVAILABLE on this host, so it is UNTESTED here\n", mechanisms[i]);
+    if (!jc_code_select_mechanism(kMechanisms[i])) {
+      printf("  -- %s: NOT AVAILABLE on this host, so it is UNTESTED here\n", kMechanisms[i]);
       continue;
     }
     covered++;
-    printf("  -- through %s:\n", mechanisms[i]);
-    CHECK(strcmp(jc_code_mechanism(), mechanisms[i]) == 0);
+    printf("  -- through %s:\n", kMechanisms[i]);
+    CHECK(strcmp(jc_code_mechanism(), kMechanisms[i]) == 0);
     run_battery();
   }
   jc_code_select_mechanism(NULL);
@@ -422,6 +428,8 @@ static void test_every_available_mechanism(void) {
      both must not read the same. */
   printf("  -- default mechanism and %d of %d forced mechanism(s) exercised on this host\n", covered, n);
 }
+
+} // namespace
 
 int main(void) {
   RUN(test_mechanism_is_named);

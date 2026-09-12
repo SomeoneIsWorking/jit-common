@@ -19,6 +19,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+namespace {
+
+constexpr int kSlots = 512;
+constexpr int kGroup = 6;
+
 static int g_checks;
 static int g_failed;
 static int g_test_failed;
@@ -120,11 +125,10 @@ static void test_insert_and_find(void) {
  * story about a run nobody can repeat.
  */
 static void test_nothing_is_stranded_by_deletion(void) {
-  enum { kSlots = 512 };
   JcBlockCache *c = jc_block_cache_create(kSlots);
   /* present[i] mirrors what the cache should hold, as the thing to compare
      against -- a second, dead-simple model, which is the point. */
-  static unsigned char present[kSlots];
+  unsigned char present[kSlots] = {};
   uint64_t rng = 0xDEADBEEFCAFEull;
   int round;
   int i;
@@ -134,7 +138,6 @@ static void test_nothing_is_stranded_by_deletion(void) {
   if (!c) {
     return;
   }
-  memset(present, 0, sizeof present);
 
   for (round = 0; round < 300; round++) {
     rng = rng * 6364136223846793005ull + 1442695040888963407ull;
@@ -217,7 +220,6 @@ static size_t home_of(JcGuestAddr g, uint32_t shift) {
 static void test_probe_chains_survive_deletion(void) {
   JcBlockCache *c = jc_block_cache_create(64);
   JcBlockTableLayout L;
-  enum { kGroup = 6 };
   JcGuestAddr colliding[kGroup];
   int found = 0;
   JcGuestAddr probe;
@@ -306,10 +308,10 @@ static void test_probe_chains_survive_deletion(void) {
  * The second arrangement is the same thing across the table's wrap, which is a
  * separate branch of the condition and is otherwise never executed at all.
  */
-static JcGuestAddr addr_with_home(size_t want, uint32_t shift, JcGuestAddr from) {
+static JcGuestAddr addr_with_home(size_t want, const JcBlockTableLayout *layout, JcGuestAddr from) {
   JcGuestAddr g;
   for (g = from; g < from + 8000000u; g++) {
-    if (home_of(g, shift) == want) {
+    if (home_of(g, layout->hash_shift) == want) {
       return g;
     }
   }
@@ -335,8 +337,8 @@ static void test_entry_at_its_own_home_is_not_shifted_back(void) {
   for (pass = 0; pass < 2; pass++) {
     size_t h = (pass == 0) ? 10u : table - 1u;
     size_t next = (h + 1u) & L.mask;
-    JcGuestAddr a = addr_with_home(h, L.hash_shift, 0x80000u);
-    JcGuestAddr d = addr_with_home(next, L.hash_shift, 0x80000u);
+    JcGuestAddr a = addr_with_home(h, &L, 0x80000u);
+    JcGuestAddr d = addr_with_home(next, &L, 0x80000u);
 
     CHECK(a != 0);
     CHECK(d != 0);
@@ -486,12 +488,12 @@ static void test_published_layout_finds_the_same_slot(void) {
     JcGuestAddr g = 0x4000u + (JcGuestAddr)i * 32u;
     /* Exactly what emitted code would do: multiply, shift, scale, load. */
     uint64_t slot = (g * L.hash_mult) >> L.hash_shift;
-    const unsigned char *base = (const unsigned char *)L.entries;
-    const unsigned char *e = base + (size_t)slot * L.entry_size;
+    const unsigned char *base = static_cast<const unsigned char *>(L.entries);
+    const unsigned char *entry = base + (size_t)slot * L.entry_size;
     JcGuestAddr key;
     void *host;
-    memcpy(&key, e + L.guest_offset, sizeof key);
-    memcpy(&host, e + L.host_offset, sizeof host);
+    memcpy(&key, entry + L.guest_offset, sizeof key);
+    memcpy(static_cast<void *>(&host), entry + L.host_offset, sizeof host);
     checked++;
     if (key == g) {
       /* A first-slot hit: the emitted fast path would take it, and it must be
@@ -562,6 +564,8 @@ static void test_bad_arguments(void) {
     jc_block_cache_destroy(c);
   }
 }
+
+} // namespace
 
 int main(void) {
   RUN(test_insert_and_find);
