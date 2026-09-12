@@ -21,7 +21,6 @@
 
 namespace {
 
-constexpr int kMappingRounds = 64;
 const char *const kMechanisms[] = {"mprotect", "dual-mapped memfd"};
 
 static int g_checks;
@@ -338,6 +337,8 @@ static void test_bad_requests_are_refused(void) {
  * mutation deleting the exec-view munmap survived everything above.
  */
 #if defined(__linux__)
+constexpr int kMappingRounds = 64;
+
 static long mapping_count(void) {
   FILE *f = fopen("/proc/self/maps", "r");
   char line[512];
