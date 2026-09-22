@@ -82,7 +82,11 @@ typedef struct JcBlockStats {
   uint64_t probe_length_total; /* divided by table lookups: the health of the hashing */
   uint64_t probe_length_max;
   uint64_t front_hits; /* hits answered by the front cache, never probing the table */
-  uint64_t guarded;    /* found, but refused to a lookup that refuses guarded blocks */
+  /* Answered NULL to a lookup refusing guarded blocks, without a miss: a
+     guarded block, or an address the front cache remembers needing the
+     question. A dispatcher asks its consumer after each. */
+  uint64_t refused;
+  uint64_t front_refusals; /* of those, answered by a front-cache mark without probing */
 } JcBlockStats;
 
 /*
@@ -121,6 +125,9 @@ typedef struct JcBlockStats {
 
 typedef struct JcBlockFront {
   JcGuestAddr guest; /* JC_BLOCK_EMPTY when this slot is free */
+  /* NULL marks an address a refusing lookup had to refuse -- a guarded block,
+     or no block at all -- so the next one refuses it without probing the
+     table. Every insert at the address clears the mark. */
   void *host;
 } JcBlockFront;
 
@@ -157,9 +164,16 @@ void *jc_block_lookup_slow(JcBlockCache *c, JcGuestAddr guest, JcBlockSlot initi
 
 /* A table hit: refused if it carries a flag in `refuse`, else remembered in
    the front cache -- which holds only unflagged blocks -- and returned. */
+/* Remember, for the next refusing lookup, that `guest` must be refused. */
+static inline void jc_block_front_mark(JcBlockFront *front, JcGuestAddr guest) {
+  front->guest = guest;
+  front->host = NULL;
+}
+
 static inline void *jc_block_take_hit(JcBlockCache *c, JcBlockFront *front, const JcBlockEntry *hit, uint32_t refuse) {
   if (hit->flags & refuse) {
-    c->stats.guarded++;
+    c->stats.refused++;
+    jc_block_front_mark(front, hit->guest);
     return NULL;
   }
   c->stats.hits++;
@@ -182,9 +196,17 @@ static inline void *jc_block_lookup_refusing(JcBlockCache *c, JcGuestAddr guest,
   c->stats.lookups++;
   JcBlockFront *front = &c->front[jc_block_front_slot(guest)];
   if (front->guest == guest) {
-    c->stats.hits++;
-    c->stats.front_hits++;
-    return front->host;
+    if (front->host) {
+      c->stats.hits++;
+      c->stats.front_hits++;
+      return front->host;
+    }
+    if (refuse) {
+      c->stats.refused++;
+      c->stats.front_refusals++;
+      return NULL;
+    }
+    /* A mark answers only refusing lookups; this one asks the table. */
   }
   size_t i = (size_t)(((uint64_t)guest * JC_HASH_MULT) >> c->shift);
   if (c->entries[i].guest == guest) {
@@ -194,6 +216,9 @@ static inline void *jc_block_lookup_refusing(JcBlockCache *c, JcGuestAddr guest,
   if (c->entries[i].guest == JC_BLOCK_EMPTY) {
     c->stats.misses++;
     c->stats.probe_length_total++;
+    if (refuse) {
+      jc_block_front_mark(front, guest);
+    }
     return NULL;
   }
   JcBlockSlot initial_slot = {i};
