@@ -583,7 +583,7 @@ static void test_guarded_blocks_are_refused(void) {
   CHECK(jc_block_lookup(c, 0x1000u) == fake_host(1));
   CHECK(jc_block_lookup_refusing(c, 0x1000u, JC_BLOCK_GUARDED) == NULL);
   jc_block_stats(c, &s);
-  CHECK_EQ_U(s.guarded, 2u);
+  CHECK_EQ_U(s.refused, 2u);
   CHECK_EQ_U(s.hits, 3u);
   CHECK_EQ_U(s.front_hits, 0u);
 
@@ -606,6 +606,39 @@ static void test_guarded_blocks_are_refused(void) {
     }
     CHECK_EQ_U((unsigned)refused, 40u);
   }
+  jc_block_cache_destroy(c);
+}
+
+/*
+ * An address with no block that a dispatcher keeps refusing -- a host thunk --
+ * is refused from the front cache after the first miss, without probing the
+ * table again, and the mark never hides a block inserted there later.
+ */
+static void test_refused_miss_is_remembered_until_an_insert(void) {
+  JcBlockCache *c = jc_block_cache_create(64);
+  JcBlockStats s;
+  uint64_t probes;
+  CHECK(c != NULL);
+  if (!c) {
+    return;
+  }
+  CHECK(jc_block_lookup_refusing(c, 0x5000u, JC_BLOCK_GUARDED) == NULL);
+  jc_block_stats(c, &s);
+  CHECK_EQ_U(s.misses, 1u);
+  probes = s.probe_length_total;
+  CHECK(jc_block_lookup_refusing(c, 0x5000u, JC_BLOCK_GUARDED) == NULL);
+  jc_block_stats(c, &s);
+  CHECK_EQ_U(s.refused, 1u);
+  CHECK_EQ_U(s.front_refusals, 1u);
+  CHECK_EQ_U(s.probe_length_total, probes);
+  /* A lookup that refuses nothing is not answered by the mark. */
+  CHECK(jc_block_lookup(c, 0x5000u) == NULL);
+  jc_block_stats(c, &s);
+  CHECK_EQ_U(s.misses, 2u);
+
+  CHECK(jc_block_insert(c, 0x5000u, fake_host(7), 4));
+  CHECK(jc_block_lookup_refusing(c, 0x5000u, JC_BLOCK_GUARDED) == fake_host(7));
+  CHECK(jc_block_lookup_refusing(c, 0x5000u, JC_BLOCK_GUARDED) == fake_host(7));
   jc_block_cache_destroy(c);
 }
 
@@ -667,6 +700,7 @@ int main(void) {
   RUN(test_reinsert_replaces);
   RUN(test_front_cache_never_answers_stale);
   RUN(test_guarded_blocks_are_refused);
+  RUN(test_refused_miss_is_remembered_until_an_insert);
   RUN(test_invalidation_is_by_overlap);
   RUN(test_probe_chains_survive_deletion);
   RUN(test_entry_at_its_own_home_is_not_shifted_back);

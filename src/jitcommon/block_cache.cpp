@@ -143,6 +143,9 @@ void *jc_block_lookup_slow(JcBlockCache *c, JcGuestAddr guest, JcBlockSlot initi
       if (probes > c->stats.probe_length_max) {
         c->stats.probe_length_max = probes;
       }
+      if (refuse) {
+        jc_block_front_mark(&c->front[jc_block_front_slot(guest)], guest);
+      }
       return NULL;
     }
   }
@@ -186,6 +189,7 @@ int jc_block_insert(JcBlockCache *c, JcGuestAddr guest, void *host, uint32_t gue
       c->entries[i].host = host;
       c->entries[i].guest_len = guest_len;
       c->entries[i].flags = 0u;
+      forget_front(c, guest); /* a refusal mark for an address with no block */
       c->count++;
       c->stats.inserts++;
       return 1;
@@ -347,13 +351,19 @@ void jc_block_stats_report(const JcBlockCache *c, char *buf, size_t len) {
     snprintf(buf, len, "block cache: %zu block(s) held, NO LOOKUPS -- nothing was asked of it", c->count);
     return;
   }
-  hit_rate = 100.0 * (double)s.hits / (double)s.lookups;
+  /* A refused lookup is neither a hit nor a miss: the dispatcher asks its
+     consumer and, if it may enter, looks up again. */
+  hit_rate = s.lookups > s.refused ? 100.0 * (double)s.hits / (double)(s.lookups - s.refused) : 0.0;
   /* Probes are paid only by lookups the front cache did not answer. */
-  mean_probe = s.lookups > s.front_hits ? (double)s.probe_length_total / (double)(s.lookups - s.front_hits) : 0.0;
+  {
+    const uint64_t probed = s.lookups - s.front_hits - s.front_refusals;
+    mean_probe = probed ? (double)s.probe_length_total / (double)probed : 0.0;
+  }
   snprintf(buf,
            len,
            "block cache: %.1f%% hit (%llu/%llu lookups, %llu from the front cache), %zu held, %llu insert(s), "
-           "%llu refused, %llu guarded lookup(s) refused, %llu invalidation(s) dropping %llu block(s), %llu flush(es), "
+           "%llu refused, %llu lookup(s) refused to the dispatcher, %llu invalidation(s) dropping %llu block(s), %llu "
+           "flush(es), "
            "table probe mean %.2f max %llu",
            hit_rate,
            (unsigned long long)s.hits,
@@ -362,7 +372,7 @@ void jc_block_stats_report(const JcBlockCache *c, char *buf, size_t len) {
            c->count,
            (unsigned long long)s.inserts,
            (unsigned long long)s.insert_refusals,
-           (unsigned long long)s.guarded,
+           (unsigned long long)s.refused,
            (unsigned long long)s.invalidations,
            (unsigned long long)s.blocks_invalidated,
            (unsigned long long)s.flushes,
