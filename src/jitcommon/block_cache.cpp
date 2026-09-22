@@ -124,22 +124,18 @@ void jc_block_cache_destroy(JcBlockCache *c) {
   free(c);
 }
 
-void *jc_block_lookup_slow(JcBlockCache *c, JcGuestAddr guest, JcBlockSlot initial_slot) {
+void *jc_block_lookup_slow(JcBlockCache *c, JcGuestAddr guest, JcBlockSlot initial_slot, uint32_t refuse) {
   size_t i = initial_slot.index;
   uint64_t probes = 1;
   for (;;) {
     probes++;
     i = (i + 1u) & c->mask;
     if (c->entries[i].guest == guest) {
-      JcBlockFront *front = &c->front[jc_block_front_slot(guest)];
-      c->stats.hits++;
       c->stats.probe_length_total += probes;
       if (probes > c->stats.probe_length_max) {
         c->stats.probe_length_max = probes;
       }
-      front->guest = guest;
-      front->host = c->entries[i].host;
-      return c->entries[i].host;
+      return jc_block_take_hit(c, &c->front[jc_block_front_slot(guest)], &c->entries[i], refuse);
     }
     if (c->entries[i].guest == JC_BLOCK_EMPTY || probes >= (uint64_t)c->capacity) {
       c->stats.misses++;
@@ -150,6 +146,24 @@ void *jc_block_lookup_slow(JcBlockCache *c, JcGuestAddr guest, JcBlockSlot initi
       return NULL;
     }
   }
+}
+
+int jc_block_guard(JcBlockCache *c, JcGuestAddr guest) {
+  size_t i;
+  size_t probes;
+  if (!c || guest == JC_BLOCK_EMPTY) {
+    return 0;
+  }
+  i = home_slot(c, guest);
+  for (probes = 0; probes < c->capacity && c->entries[i].guest != JC_BLOCK_EMPTY; probes++) {
+    if (c->entries[i].guest == guest) {
+      c->entries[i].flags |= JC_BLOCK_GUARDED;
+      forget_front(c, guest);
+      return 1;
+    }
+    i = (i + 1u) & c->mask;
+  }
+  return 0;
 }
 
 int jc_block_insert(JcBlockCache *c, JcGuestAddr guest, void *host, uint32_t guest_len) {
@@ -171,7 +185,7 @@ int jc_block_insert(JcBlockCache *c, JcGuestAddr guest, void *host, uint32_t gue
       c->entries[i].guest = guest;
       c->entries[i].host = host;
       c->entries[i].guest_len = guest_len;
-      c->entries[i].flags = 0;
+      c->entries[i].flags = 0u;
       c->count++;
       c->stats.inserts++;
       return 1;
@@ -182,6 +196,7 @@ int jc_block_insert(JcBlockCache *c, JcGuestAddr guest, void *host, uint32_t gue
          memory belongs to the code arena, not to this table. */
       c->entries[i].host = host;
       c->entries[i].guest_len = guest_len;
+      c->entries[i].flags = 0u;
       forget_front(c, guest);
       c->stats.inserts++;
       return 1;
@@ -338,7 +353,8 @@ void jc_block_stats_report(const JcBlockCache *c, char *buf, size_t len) {
   snprintf(buf,
            len,
            "block cache: %.1f%% hit (%llu/%llu lookups, %llu from the front cache), %zu held, %llu insert(s), "
-           "%llu refused, %llu invalidation(s) dropping %llu block(s), %llu flush(es), table probe mean %.2f max %llu",
+           "%llu refused, %llu guarded lookup(s) refused, %llu invalidation(s) dropping %llu block(s), %llu flush(es), "
+           "table probe mean %.2f max %llu",
            hit_rate,
            (unsigned long long)s.hits,
            (unsigned long long)s.lookups,
@@ -346,6 +362,7 @@ void jc_block_stats_report(const JcBlockCache *c, char *buf, size_t len) {
            c->count,
            (unsigned long long)s.inserts,
            (unsigned long long)s.insert_refusals,
+           (unsigned long long)s.guarded,
            (unsigned long long)s.invalidations,
            (unsigned long long)s.blocks_invalidated,
            (unsigned long long)s.flushes,

@@ -562,6 +562,53 @@ static void test_front_cache_never_answers_stale(void) {
   jc_block_cache_destroy(c);
 }
 
+/*
+ * A guarded block is refused to a lookup that refuses guarded blocks, EVERY
+ * time -- including after an ordinary lookup has found it, which is the case
+ * a front cache that remembered it would get wrong -- and found by any other.
+ */
+static void test_guarded_blocks_are_refused(void) {
+  JcBlockCache *c = jc_block_cache_create(64);
+  JcBlockStats s;
+  CHECK(c != NULL);
+  if (!c) {
+    return;
+  }
+  CHECK(jc_block_guard(c, 0x1000u) == 0); /* nothing held there yet */
+  CHECK(jc_block_insert(c, 0x1000u, fake_host(1), 16));
+  CHECK(jc_block_lookup(c, 0x1000u) == fake_host(1)); /* now in the front cache */
+  CHECK(jc_block_guard(c, 0x1000u) == 1);
+  CHECK(jc_block_lookup_refusing(c, 0x1000u, JC_BLOCK_GUARDED) == NULL);
+  CHECK(jc_block_lookup(c, 0x1000u) == fake_host(1));
+  CHECK(jc_block_lookup(c, 0x1000u) == fake_host(1));
+  CHECK(jc_block_lookup_refusing(c, 0x1000u, JC_BLOCK_GUARDED) == NULL);
+  jc_block_stats(c, &s);
+  CHECK_EQ_U(s.guarded, 2u);
+  CHECK_EQ_U(s.hits, 3u);
+  CHECK_EQ_U(s.front_hits, 0u);
+
+  /* A retranslation clears the mark; guarding it again restores it. */
+  CHECK(jc_block_insert(c, 0x1000u, fake_host(2), 16));
+  CHECK(jc_block_lookup_refusing(c, 0x1000u, JC_BLOCK_GUARDED) == fake_host(2));
+  CHECK(jc_block_guard(c, 0x1000u) == 1);
+  CHECK(jc_block_lookup_refusing(c, 0x1000u, JC_BLOCK_GUARDED) == NULL);
+
+  /* Guarded blocks reached through a collision probe are refused as well. */
+  {
+    int i;
+    int refused = 0;
+    for (i = 0; i < 40; i++) {
+      CHECK(jc_block_insert(c, 0x2000u + (JcGuestAddr)i * 4u, fake_host((uint64_t)(10 + i)), 4));
+      CHECK(jc_block_guard(c, 0x2000u + (JcGuestAddr)i * 4u) == 1);
+    }
+    for (i = 0; i < 40; i++) {
+      refused += jc_block_lookup_refusing(c, 0x2000u + (JcGuestAddr)i * 4u, JC_BLOCK_GUARDED) == NULL;
+    }
+    CHECK_EQ_U((unsigned)refused, 40u);
+  }
+  jc_block_cache_destroy(c);
+}
+
 /* A cache nobody asked anything must not report a perfect hit rate. */
 static void test_empty_report_names_its_denominator(void) {
   JcBlockCache *c = jc_block_cache_create(16);
@@ -619,6 +666,7 @@ int main(void) {
   RUN(test_insert_and_find);
   RUN(test_reinsert_replaces);
   RUN(test_front_cache_never_answers_stale);
+  RUN(test_guarded_blocks_are_refused);
   RUN(test_invalidation_is_by_overlap);
   RUN(test_probe_chains_survive_deletion);
   RUN(test_entry_at_its_own_home_is_not_shifted_back);
