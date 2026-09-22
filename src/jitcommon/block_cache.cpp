@@ -47,6 +47,23 @@ static size_t home_slot(const JcBlockCache *c, JcGuestAddr guest) {
   return (size_t)(jc_block_hash(guest) >> c->shift);
 }
 
+/* The front slot of `guest` stops answering for it. */
+static void forget_front(JcBlockCache *c, JcGuestAddr guest) {
+  JcBlockFront *front = &c->front[jc_block_front_slot(guest)];
+  if (front->guest == guest) {
+    front->guest = JC_BLOCK_EMPTY;
+    front->host = NULL;
+  }
+}
+
+static void clear_front(JcBlockCache *c) {
+  size_t i;
+  for (i = 0; i < JC_BLOCK_FRONT_SLOTS; i++) {
+    c->front[i].guest = JC_BLOCK_EMPTY;
+    c->front[i].host = NULL;
+  }
+}
+
 } // namespace
 
 extern "C" {
@@ -77,10 +94,14 @@ JcBlockCache *jc_block_cache_create(size_t capacity) {
     return NULL;
   }
   c->entries = (JcBlockEntry *)malloc(table * sizeof *c->entries);
-  if (!c->entries) {
+  c->front = (JcBlockFront *)malloc(JC_BLOCK_FRONT_SLOTS * sizeof *c->front);
+  if (!c->entries || !c->front) {
+    free(c->entries);
+    free(c->front);
     free(c);
     return NULL;
   }
+  clear_front(c);
   c->capacity = table;
   c->mask = table - 1u;
   c->shift = (unsigned)(64u - log2_size(table));
@@ -99,6 +120,7 @@ void jc_block_cache_destroy(JcBlockCache *c) {
     return;
   }
   free(c->entries);
+  free(c->front);
   free(c);
 }
 
@@ -109,11 +131,14 @@ void *jc_block_lookup_slow(JcBlockCache *c, JcGuestAddr guest, JcBlockSlot initi
     probes++;
     i = (i + 1u) & c->mask;
     if (c->entries[i].guest == guest) {
+      JcBlockFront *front = &c->front[jc_block_front_slot(guest)];
       c->stats.hits++;
       c->stats.probe_length_total += probes;
       if (probes > c->stats.probe_length_max) {
         c->stats.probe_length_max = probes;
       }
+      front->guest = guest;
+      front->host = c->entries[i].host;
       return c->entries[i].host;
     }
     if (c->entries[i].guest == JC_BLOCK_EMPTY || probes >= (uint64_t)c->capacity) {
@@ -157,6 +182,7 @@ int jc_block_insert(JcBlockCache *c, JcGuestAddr guest, void *host, uint32_t gue
          memory belongs to the code arena, not to this table. */
       c->entries[i].host = host;
       c->entries[i].guest_len = guest_len;
+      forget_front(c, guest);
       c->stats.inserts++;
       return 1;
     }
@@ -238,6 +264,7 @@ size_t jc_block_invalidate_range(JcBlockCache *c, JcGuestAddr lo, JcGuestAddr hi
        * of a block, which is what real self-modifying code does.
        */
       if (g < hi && end > lo) {
+        forget_front(c, g);
         remove_at(c, i);
         c->count--;
         dropped++;
@@ -263,6 +290,7 @@ void jc_block_flush(JcBlockCache *c) {
     c->entries[i].guest_len = 0;
     c->entries[i].flags = 0;
   }
+  clear_front(c);
   c->count = 0;
   c->stats.flushes++;
 }
@@ -305,14 +333,16 @@ void jc_block_stats_report(const JcBlockCache *c, char *buf, size_t len) {
     return;
   }
   hit_rate = 100.0 * (double)s.hits / (double)s.lookups;
-  mean_probe = (double)s.probe_length_total / (double)s.lookups;
+  /* Probes are paid only by lookups the front cache did not answer. */
+  mean_probe = s.lookups > s.front_hits ? (double)s.probe_length_total / (double)(s.lookups - s.front_hits) : 0.0;
   snprintf(buf,
            len,
-           "block cache: %.1f%% hit (%llu/%llu lookups), %zu held, %llu insert(s), %llu refused, "
-           "%llu invalidation(s) dropping %llu block(s), %llu flush(es), probe mean %.2f max %llu",
+           "block cache: %.1f%% hit (%llu/%llu lookups, %llu from the front cache), %zu held, %llu insert(s), "
+           "%llu refused, %llu invalidation(s) dropping %llu block(s), %llu flush(es), table probe mean %.2f max %llu",
            hit_rate,
            (unsigned long long)s.hits,
            (unsigned long long)s.lookups,
+           (unsigned long long)s.front_hits,
            c->count,
            (unsigned long long)s.inserts,
            (unsigned long long)s.insert_refusals,

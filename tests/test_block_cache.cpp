@@ -514,6 +514,54 @@ static void test_published_layout_finds_the_same_slot(void) {
   jc_block_cache_destroy(c);
 }
 
+/*
+ * The front cache answers a repeated lookup without the table, and never with
+ * a mapping the table no longer holds: after invalidation, flush, and a
+ * retranslation, the second lookup of each address -- the one the front cache
+ * would answer -- must return what the table says.
+ */
+static void test_front_cache_never_answers_stale(void) {
+  JcBlockCache *c = jc_block_cache_create(64);
+  JcBlockStats s;
+  CHECK(c != NULL);
+  if (!c) {
+    return;
+  }
+  CHECK(jc_block_insert(c, 0x1000u, fake_host(1), 16));
+  CHECK(jc_block_lookup(c, 0x1000u) == fake_host(1));
+  CHECK(jc_block_lookup(c, 0x1000u) == fake_host(1));
+  jc_block_stats(c, &s);
+  CHECK_EQ_U(s.front_hits, 1u);
+
+  CHECK(jc_block_insert(c, 0x1000u, fake_host(2), 16)); /* retranslation */
+  CHECK(jc_block_lookup(c, 0x1000u) == fake_host(2));
+  CHECK(jc_block_lookup(c, 0x1000u) == fake_host(2));
+
+  CHECK_EQ_U(jc_block_invalidate_range(c, 0x1008u, 0x1009u), 1u);
+  CHECK(jc_block_lookup(c, 0x1000u) == NULL);
+
+  CHECK(jc_block_insert(c, 0x2000u, fake_host(3), 16));
+  CHECK(jc_block_lookup(c, 0x2000u) == fake_host(3));
+  jc_block_flush(c);
+  CHECK(jc_block_lookup(c, 0x2000u) == NULL);
+
+  /* Two addresses sharing a front slot evict each other and stay correct. */
+  {
+    JcGuestAddr a = 0x3000u;
+    JcGuestAddr b = a + (JcGuestAddr)(JC_BLOCK_FRONT_SLOTS << JC_BLOCK_FRONT_SHIFT);
+    CHECK(jc_block_front_slot(a) == jc_block_front_slot(b));
+    CHECK(jc_block_insert(c, a, fake_host(4), 4));
+    CHECK(jc_block_insert(c, b, fake_host(5), 4));
+    CHECK(jc_block_lookup(c, a) == fake_host(4));
+    CHECK(jc_block_lookup(c, b) == fake_host(5));
+    CHECK(jc_block_lookup(c, a) == fake_host(4));
+    CHECK_EQ_U(jc_block_invalidate_range(c, b, b + 1u), 1u);
+    CHECK(jc_block_lookup(c, b) == NULL);
+    CHECK(jc_block_lookup(c, a) == fake_host(4));
+  }
+  jc_block_cache_destroy(c);
+}
+
 /* A cache nobody asked anything must not report a perfect hit rate. */
 static void test_empty_report_names_its_denominator(void) {
   JcBlockCache *c = jc_block_cache_create(16);
@@ -570,6 +618,7 @@ static void test_bad_arguments(void) {
 int main(void) {
   RUN(test_insert_and_find);
   RUN(test_reinsert_replaces);
+  RUN(test_front_cache_never_answers_stale);
   RUN(test_invalidation_is_by_overlap);
   RUN(test_probe_chains_survive_deletion);
   RUN(test_entry_at_its_own_home_is_not_shifted_back);

@@ -79,15 +79,48 @@ typedef struct JcBlockStats {
   uint64_t invalidations;   /* calls to invalidate_range */
   uint64_t blocks_invalidated;
   uint64_t flushes;
-  uint64_t probe_length_total; /* divided by lookups: the health of the hashing */
+  uint64_t probe_length_total; /* divided by table lookups: the health of the hashing */
   uint64_t probe_length_max;
+  uint64_t front_hits; /* hits answered by the front cache, never probing the table */
 } JcBlockStats;
 
 #define JC_HASH_MULT 0x9E3779B97F4A7C15ull
 
+/*
+ * THE FRONT CACHE: a small direct-mapped copy of recent (guest, host) pairs,
+ * asked before the table.
+ *
+ * The table's hash scatters on purpose (see block_cache.cpp), so every block a
+ * run keeps entering owns its own cache line of a table sized for the whole
+ * translation budget -- 4 MB at 65,536 blocks. Measured on an x86 title's
+ * gameplay, 52% of the dispatcher's samples sat on the load of the probed
+ * slot: one last-level-cache round trip per block entered. The front cache is
+ * indexed by address bits instead, so neighbouring blocks share lines and the
+ * hot set stays in a 128 KiB array; a conflict is only a fall-through to the
+ * table.
+ *
+ * It holds COPIES, so the invariant is that no pair outlives its table entry:
+ * every path that removes or replaces a mapping clears or updates the front
+ * slot of that guest address (invalidation, flush, retranslation).
+ */
+#define JC_BLOCK_FRONT_SLOTS 8192u
+/* Low address bits dropped from the index: 2 keeps neighbouring blocks in
+   neighbouring slots on every guest ISA (fixed-width ISAs never use them). */
+#define JC_BLOCK_FRONT_SHIFT 2u
+
+typedef struct JcBlockFront {
+  JcGuestAddr guest; /* JC_BLOCK_EMPTY when this slot is free */
+  void *host;
+} JcBlockFront;
+
+static inline size_t jc_block_front_slot(JcGuestAddr guest) {
+  return (size_t)(guest >> JC_BLOCK_FRONT_SHIFT) & (size_t)(JC_BLOCK_FRONT_SLOTS - 1u);
+}
+
 typedef struct JcBlockCache {
   JcBlockEntry *entries;
-  size_t capacity; /* power of two */
+  JcBlockFront *front; /* JC_BLOCK_FRONT_SLOTS entries; see above */
+  size_t capacity;     /* power of two */
   size_t mask;
   unsigned shift; /* 64 - log2(capacity) */
   size_t count;
@@ -121,10 +154,18 @@ static inline void *jc_block_lookup(JcBlockCache *c, JcGuestAddr guest) {
     return NULL;
   }
   c->stats.lookups++;
+  JcBlockFront *front = &c->front[jc_block_front_slot(guest)];
+  if (front->guest == guest) {
+    c->stats.hits++;
+    c->stats.front_hits++;
+    return front->host;
+  }
   size_t i = (size_t)(((uint64_t)guest * JC_HASH_MULT) >> c->shift);
   if (c->entries[i].guest == guest) {
     c->stats.hits++;
     c->stats.probe_length_total++;
+    front->guest = guest;
+    front->host = c->entries[i].host;
     return c->entries[i].host;
   }
   if (c->entries[i].guest == JC_BLOCK_EMPTY) {
