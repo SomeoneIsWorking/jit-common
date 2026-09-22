@@ -64,7 +64,7 @@ typedef struct JcBlockEntry {
   JcGuestAddr guest;  /* JC_BLOCK_EMPTY when this slot is free */
   void *host;         /* the EXEC address of the translated code */
   uint32_t guest_len; /* guest bytes covered, for range invalidation */
-  uint32_t flags;
+  uint32_t flags;     /* JC_BLOCK_GUARDED, or 0 */
   uint64_t _reserved; /* pad to 32 bytes so entries never span cache lines and scale is a power-of-two shift */
 } JcBlockEntry;
 
@@ -82,7 +82,18 @@ typedef struct JcBlockStats {
   uint64_t probe_length_total; /* divided by table lookups: the health of the hashing */
   uint64_t probe_length_max;
   uint64_t front_hits; /* hits answered by the front cache, never probing the table */
+  uint64_t guarded;    /* found, but refused to a lookup that refuses guarded blocks */
 } JcBlockStats;
+
+/*
+ * A block the framework must not enter without asking its consumer first --
+ * one at an address the consumer may take over (a host thunk, a native
+ * override). The framework's dispatcher looks up with
+ * jc_block_lookup_refusing(..., JC_BLOCK_GUARDED) so that only these blocks,
+ * and misses, reach the question; every other entry skips it. The front cache
+ * never holds a guarded block, so it can answer any lookup.
+ */
+#define JC_BLOCK_GUARDED 1u
 
 #define JC_HASH_MULT 0x9E3779B97F4A7C15ull
 
@@ -142,14 +153,29 @@ typedef struct JcBlockSlot {
 } JcBlockSlot;
 
 /* Slow path for collision probes. */
-void *jc_block_lookup_slow(JcBlockCache *c, JcGuestAddr guest, JcBlockSlot initial_slot);
+void *jc_block_lookup_slow(JcBlockCache *c, JcGuestAddr guest, JcBlockSlot initial_slot, uint32_t refuse);
+
+/* A table hit: refused if it carries a flag in `refuse`, else remembered in
+   the front cache -- which holds only unflagged blocks -- and returned. */
+static inline void *jc_block_take_hit(JcBlockCache *c, JcBlockFront *front, const JcBlockEntry *hit, uint32_t refuse) {
+  if (hit->flags & refuse) {
+    c->stats.guarded++;
+    return NULL;
+  }
+  c->stats.hits++;
+  if (hit->flags == 0u) {
+    front->guest = hit->guest;
+    front->host = hit->host;
+  }
+  return hit->host;
+}
 
 /*
  * The hot path. Returns the host code address, or NULL if this guest address
  * has not been translated -- which is a NORMAL, COUNTED outcome and the signal
- * to translate, not an error.
+ * to translate, not an error -- or if the block carries a flag in `refuse`.
  */
-static inline void *jc_block_lookup(JcBlockCache *c, JcGuestAddr guest) {
+static inline void *jc_block_lookup_refusing(JcBlockCache *c, JcGuestAddr guest, uint32_t refuse) {
   if (!c || guest == JC_BLOCK_EMPTY) {
     return NULL;
   }
@@ -162,11 +188,8 @@ static inline void *jc_block_lookup(JcBlockCache *c, JcGuestAddr guest) {
   }
   size_t i = (size_t)(((uint64_t)guest * JC_HASH_MULT) >> c->shift);
   if (c->entries[i].guest == guest) {
-    c->stats.hits++;
     c->stats.probe_length_total++;
-    front->guest = guest;
-    front->host = c->entries[i].host;
-    return c->entries[i].host;
+    return jc_block_take_hit(c, front, &c->entries[i], refuse);
   }
   if (c->entries[i].guest == JC_BLOCK_EMPTY) {
     c->stats.misses++;
@@ -174,7 +197,12 @@ static inline void *jc_block_lookup(JcBlockCache *c, JcGuestAddr guest) {
     return NULL;
   }
   JcBlockSlot initial_slot = {i};
-  return jc_block_lookup_slow(c, guest, initial_slot);
+  return jc_block_lookup_slow(c, guest, initial_slot, refuse);
+}
+
+/* Any block at `guest`, guarded or not. */
+static inline void *jc_block_lookup(JcBlockCache *c, JcGuestAddr guest) {
+  return jc_block_lookup_refusing(c, guest, 0u);
 }
 
 /*
@@ -190,6 +218,11 @@ static inline void *jc_block_lookup(JcBlockCache *c, JcGuestAddr guest) {
  * be corruption, not pressure.
  */
 int jc_block_insert(JcBlockCache *c, JcGuestAddr guest, void *host, uint32_t guest_len);
+
+/* Mark the block at `guest` JC_BLOCK_GUARDED. Returns 0 when no block is held
+   there. An insert -- including a retranslation -- clears the mark, so a
+   caller guards after every insert that needs it. */
+int jc_block_guard(JcBlockCache *c, JcGuestAddr guest);
 
 /*
  * Forget every block overlapping [lo, hi). This is what a framework calls on
