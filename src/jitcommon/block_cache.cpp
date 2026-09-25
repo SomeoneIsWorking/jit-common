@@ -56,6 +56,61 @@ static void forget_front(JcBlockCache *c, JcGuestAddr guest) {
   }
 }
 
+static size_t region_bit(JcGuestAddr region) {
+  return (size_t)(region & (JC_BLOCK_REGION_BITS - 1u));
+}
+
+/* The guest bytes [lo, hi), and the 64 KiB regions they touch. */
+struct GuestSpan {
+  JcGuestAddr lo;
+  JcGuestAddr hi;
+
+  JcGuestAddr first_region() const {
+    return lo >> JC_BLOCK_REGION_SHIFT;
+  }
+  JcGuestAddr last_region() const {
+    return (hi - 1u) >> JC_BLOCK_REGION_SHIFT;
+  }
+};
+
+/* Mark every region [lo, hi) touches as possibly holding a block. A span
+   covering more regions than there are bits marks every bit. */
+static void mark_regions(JcBlockCache *c, GuestSpan span) {
+  JcGuestAddr region = span.first_region();
+  const JcGuestAddr last = span.last_region();
+  if (last - region >= JC_BLOCK_REGION_BITS) {
+    memset(c->regions, 0xff, sizeof c->regions);
+    return;
+  }
+  for (;;) {
+    const size_t bit = region_bit(region);
+    c->regions[bit / 64u] |= (uint64_t)1u << (bit % 64u);
+    if (region == last) {
+      return;
+    }
+    region++;
+  }
+}
+
+/* Whether any region [lo, hi) touches may hold a block. */
+static int regions_may_hold_blocks(const JcBlockCache *c, GuestSpan span) {
+  JcGuestAddr region = span.first_region();
+  const JcGuestAddr last = span.last_region();
+  if (last - region >= JC_BLOCK_REGION_BITS) {
+    return 1; /* touches every bit */
+  }
+  for (;;) {
+    const size_t bit = region_bit(region);
+    if (c->regions[bit / 64u] & ((uint64_t)1u << (bit % 64u))) {
+      return 1;
+    }
+    if (region == last) {
+      return 0;
+    }
+    region++;
+  }
+}
+
 static void clear_front(JcBlockCache *c) {
   size_t i;
   for (i = 0; i < JC_BLOCK_FRONT_SLOTS; i++) {
@@ -189,6 +244,7 @@ int jc_block_insert(JcBlockCache *c, JcGuestAddr guest, void *host, uint32_t gue
       c->entries[i].host = host;
       c->entries[i].guest_len = guest_len;
       c->entries[i].flags = 0u;
+      mark_regions(c, {guest, guest + (guest_len ? guest_len : 1u)});
       forget_front(c, guest); /* a refusal mark for an address with no block */
       c->count++;
       c->stats.inserts++;
@@ -201,6 +257,7 @@ int jc_block_insert(JcBlockCache *c, JcGuestAddr guest, void *host, uint32_t gue
       c->entries[i].host = host;
       c->entries[i].guest_len = guest_len;
       c->entries[i].flags = 0u;
+      mark_regions(c, {guest, guest + (guest_len ? guest_len : 1u)});
       forget_front(c, guest);
       c->stats.inserts++;
       return 1;
@@ -263,14 +320,17 @@ size_t jc_block_invalidate_range(JcBlockCache *c, JcGuestAddr lo, JcGuestAddr hi
     return 0;
   }
   c->stats.invalidations++;
+  if (!regions_may_hold_blocks(c, {lo, hi})) {
+    c->stats.invalidations_unscanned++;
+    return 0;
+  }
   /*
-   * A full scan. Invalidation is driven by overlay loads, bank switches, DMA
-   * into code, and self-modifying code -- all rare next to lookups, which is
-   * why this is not indexed by page. That trade is measurable rather than
-   * assumed: `invalidations` beside `lookups` in the report is exactly the
-   * ratio that would say a title needs a page index, and until one does, a page
-   * map maintained across backward-shift moves is a bug farm bought with
-   * nothing.
+   * A full scan once the region map says a block may be here. The map is only
+   * a coarse "never inserted here" filter, not an index: it is never updated
+   * on removal or backward-shift moves, so it cannot go stale in the direction
+   * that would skip a live block. `invalidations_unscanned` beside
+   * `invalidations` in the report is the ratio that would say whether a title
+   * needs an exact page index.
    */
   for (i = 0; i < c->capacity;) {
     JcGuestAddr g = c->entries[i].guest;
@@ -310,6 +370,7 @@ void jc_block_flush(JcBlockCache *c) {
     c->entries[i].flags = 0;
   }
   clear_front(c);
+  memset(c->regions, 0, sizeof c->regions);
   c->count = 0;
   c->stats.flushes++;
 }
@@ -359,25 +420,27 @@ void jc_block_stats_report(const JcBlockCache *c, char *buf, size_t len) {
     const uint64_t probed = s.lookups - s.front_hits - s.front_refusals;
     mean_probe = probed ? (double)s.probe_length_total / (double)probed : 0.0;
   }
-  snprintf(buf,
-           len,
-           "block cache: %.1f%% hit (%llu/%llu lookups, %llu from the front cache), %zu held, %llu insert(s), "
-           "%llu refused, %llu lookup(s) refused to the dispatcher, %llu invalidation(s) dropping %llu block(s), %llu "
-           "flush(es), "
-           "table probe mean %.2f max %llu",
-           hit_rate,
-           (unsigned long long)s.hits,
-           (unsigned long long)s.lookups,
-           (unsigned long long)s.front_hits,
-           c->count,
-           (unsigned long long)s.inserts,
-           (unsigned long long)s.insert_refusals,
-           (unsigned long long)s.refused,
-           (unsigned long long)s.invalidations,
-           (unsigned long long)s.blocks_invalidated,
-           (unsigned long long)s.flushes,
-           mean_probe,
-           (unsigned long long)s.probe_length_max);
+  snprintf(
+      buf,
+      len,
+      "block cache: %.1f%% hit (%llu/%llu lookups, %llu from the front cache), %zu held, %llu insert(s), "
+      "%llu refused, %llu lookup(s) refused to the dispatcher, %llu invalidation(s) (%llu unscanned) dropping %llu "
+      "block(s), %llu flush(es), "
+      "table probe mean %.2f max %llu",
+      hit_rate,
+      (unsigned long long)s.hits,
+      (unsigned long long)s.lookups,
+      (unsigned long long)s.front_hits,
+      c->count,
+      (unsigned long long)s.inserts,
+      (unsigned long long)s.insert_refusals,
+      (unsigned long long)s.refused,
+      (unsigned long long)s.invalidations,
+      (unsigned long long)s.invalidations_unscanned,
+      (unsigned long long)s.blocks_invalidated,
+      (unsigned long long)s.flushes,
+      mean_probe,
+      (unsigned long long)s.probe_length_max);
 }
 
 void jc_block_table_layout(const JcBlockCache *c, JcBlockTableLayout *out) {
