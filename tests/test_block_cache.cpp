@@ -408,6 +408,48 @@ static void test_invalidation_is_by_overlap(void) {
   jc_block_cache_destroy(c);
 }
 
+/* An invalidation where no block was ever inserted answers without scanning,
+   and one that may touch a block still finds it wherever it starts. */
+static void test_invalidation_skips_regions_without_blocks(void) {
+  JcBlockCache *c = jc_block_cache_create(16);
+  JcBlockStats s;
+  CHECK(c != NULL);
+  if (!c) {
+    return;
+  }
+  /* A block straddling the boundary between regions 0x40 and 0x41. */
+  CHECK(jc_block_insert(c, 0x40FFF0u, fake_host(1), 0x20));
+
+  /* Megabytes of data elsewhere: nothing to find, nothing scanned. */
+  CHECK_EQ_U(jc_block_invalidate_range(c, 0x800000u, 0xA00000u), 0u);
+  jc_block_stats(c, &s);
+  CHECK_EQ_U(s.invalidations, 1u);
+  CHECK_EQ_U(s.invalidations_unscanned, 1u);
+
+  /* A write only in the block's SECOND region still drops it: insertion marks
+     every region a block spans, not just the one it starts in. */
+  CHECK_EQ_U(jc_block_invalidate_range(c, 0x410008u, 0x410009u), 1u);
+  CHECK(jc_block_lookup(c, 0x40FFF0u) == NULL);
+
+  /* A region whose number shares the block's bit (2^32 bytes apart) is a
+     "maybe": it is scanned, and the scan finds no overlap. */
+  CHECK(jc_block_insert(c, 0x40FFF0u, fake_host(1), 0x20));
+  CHECK_EQ_U(jc_block_invalidate_range(c, 0x100400000ull, 0x100400010ull), 0u);
+  CHECK(jc_block_lookup(c, 0x40FFF0u) == fake_host(1));
+
+  /* A range spanning every region is always scanned. */
+  CHECK_EQ_U(jc_block_invalidate_range(c, 0u, 0x200000000ull), 1u);
+
+  /* Removal leaves the region marked (a maybe); a flush clears it. */
+  CHECK(jc_block_insert(c, 0x40FFF0u, fake_host(1), 0x20));
+  jc_block_flush(c);
+  CHECK_EQ_U(jc_block_invalidate_range(c, 0x40FFF0u, 0x410000u), 0u);
+  jc_block_stats(c, &s);
+  CHECK_EQ_U(s.invalidations, 5u);
+  CHECK_EQ_U(s.invalidations_unscanned, 2u);
+  jc_block_cache_destroy(c);
+}
+
 /* A full table REFUSES rather than evicting something a chained branch may
    still point at. */
 static void test_full_cache_refuses(void) {
@@ -702,6 +744,7 @@ int main(void) {
   RUN(test_guarded_blocks_are_refused);
   RUN(test_refused_miss_is_remembered_until_an_insert);
   RUN(test_invalidation_is_by_overlap);
+  RUN(test_invalidation_skips_regions_without_blocks);
   RUN(test_probe_chains_survive_deletion);
   RUN(test_entry_at_its_own_home_is_not_shifted_back);
   RUN(test_nothing_is_stranded_by_deletion);

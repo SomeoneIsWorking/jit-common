@@ -87,6 +87,9 @@ typedef struct JcBlockStats {
      question. A dispatcher asks its consumer after each. */
   uint64_t refused;
   uint64_t front_refusals; /* of those, answered by a front-cache mark without probing */
+  /* Of `invalidations`, answered without scanning the table because no block
+     was ever inserted in any region the range touches (see JcBlockCache). */
+  uint64_t invalidations_unscanned;
 } JcBlockStats;
 
 /*
@@ -135,6 +138,20 @@ static inline size_t jc_block_front_slot(JcGuestAddr guest) {
   return (size_t)(guest >> JC_BLOCK_FRONT_SHIFT) & (size_t)(JC_BLOCK_FRONT_SLOTS - 1u);
 }
 
+/*
+ * Where blocks may be, coarsely: one bit per 64 KiB guest region, hashed by
+ * the region number into a fixed 64 Ki-bit map. Inserting a block sets the
+ * bits of the regions it spans; only a flush clears them. A bit is therefore
+ * a MAYBE -- a removed block or another region hashing to the same bit leaves
+ * it set -- and a clear bit is a certain "no block here", which is all
+ * invalidation needs to skip its full-table scan. A title's allocator changes
+ * protection on megabytes of data that hold no code (461 invalidations
+ * dropping one block over a boot and level load), and each used to scan every
+ * slot.
+ */
+#define JC_BLOCK_REGION_SHIFT 16u
+#define JC_BLOCK_REGION_BITS 65536u
+
 typedef struct JcBlockCache {
   JcBlockEntry *entries;
   JcBlockFront *front; /* JC_BLOCK_FRONT_SLOTS entries; see above */
@@ -144,6 +161,7 @@ typedef struct JcBlockCache {
   size_t count;
   size_t limit; /* refuse inserts past this, to bound probe length */
   JcBlockStats stats;
+  uint64_t regions[JC_BLOCK_REGION_BITS / 64u]; /* see JC_BLOCK_REGION_SHIFT */
 } JcBlockCache;
 
 /*
