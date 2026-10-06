@@ -142,7 +142,7 @@ JcCodeStatus jc_code_begin_write(JcCodeRegion *r);
 
 /*
  * Which mechanism this build resolved at run time -- "mprotect", "dual-mapped
- * memfd", "MAP_JIT", "VirtualProtect". For run reports: "the JIT worked on my
+ * memfd", "dual-mapped section", "MAP_JIT", "VirtualProtect". For run reports: "the JIT worked on my
  * machine" and "the JIT worked using the same mechanism as the user's machine"
  * are different claims, and only one of them is evidence.
  */

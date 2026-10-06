@@ -21,7 +21,11 @@
 
 namespace {
 
+#if defined(_WIN32)
+const char *const kMechanisms[] = {"VirtualProtect", "dual-mapped section"};
+#else
 const char *const kMechanisms[] = {"mprotect", "dual-mapped memfd"};
+#endif
 
 static int g_checks;
 static int g_failed;
