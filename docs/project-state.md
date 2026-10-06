@@ -127,6 +127,13 @@ earlier code. The subsequent build performs no compilations. This combined-tree
 result does not replace native macOS/Windows hosted verification or prove concurrent
 patching or title performance.
 
+Windows defaults to a dual-mapped section: one pagefile-backed
+`CreateFileMapping` viewed RW and RX, so publishing never calls
+`VirtualProtect`. Whole-region `VirtualProtect` on every publish was 78.6% of an
+X-Men 2 boot under Wine; it remains selectable as `VirtualProtect`. 2026-10-06,
+llvm-mingw build under Wine: `test_code_memory` passes 902 checks through the
+default and both forced mechanisms. Native Windows hosted CI covers the same test.
+
 ### S003 — global instruction replacement
 
 Evidence: commits `75249b3`, `bcb1150`, and `859c47b` remove the static

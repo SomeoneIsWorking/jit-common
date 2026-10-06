@@ -57,7 +57,7 @@ namespace {
 typedef enum Mechanism : uint8_t {
   kMechUnresolved = 0,
   kMechMprotect, /* anonymous mapping, flipped RW <-> RX in place */
-  kMechDualMap,  /* one memfd mapped twice: RW here, RX there */
+  kMechDualMap,  /* one memfd or section mapped twice: RW here, RX there */
   kMechMapJit,   /* Apple: one address, per-thread write protection */
   kMechVirtualProtect,
   kMechNone /* nothing worked; every allocation refuses */
@@ -70,7 +70,11 @@ static const char *mechanism_name(Mechanism m) {
   case kMechMprotect:
     return "mprotect";
   case kMechDualMap:
+#if defined(_WIN32)
+    return "dual-mapped section";
+#else
     return "dual-mapped memfd";
+#endif
   case kMechMapJit:
     return "MAP_JIT";
   case kMechVirtualProtect:
@@ -111,6 +115,43 @@ static size_t round_up_pages(size_t n) {
   }
   return r - (r % p);
 }
+
+#if defined(_WIN32)
+/* One pagefile-backed section viewed twice, so publishing never reprotects. */
+static int map_dual_section(size_t bytes, void **rw, void **rx) {
+  HANDLE h = CreateFileMappingW(INVALID_HANDLE_VALUE,
+                                NULL,
+                                PAGE_EXECUTE_READWRITE | SEC_COMMIT,
+                                (DWORD)((unsigned long long)bytes >> 32),
+                                (DWORD)bytes,
+                                NULL);
+  if (!h) {
+    return 0;
+  }
+  *rw = MapViewOfFile(h, FILE_MAP_WRITE, 0, 0, bytes);
+  *rx = *rw ? MapViewOfFile(h, FILE_MAP_READ | FILE_MAP_EXECUTE, 0, 0, bytes) : NULL;
+  CloseHandle(h); /* the views keep the section alive */
+  if (!*rx) {
+    if (*rw) {
+      UnmapViewOfFile(*rw);
+    }
+    return 0;
+  }
+  return 1;
+}
+
+static int dual_section_available(void) {
+  void *rw;
+  void *rx;
+  size_t p = page_size();
+  if (!map_dual_section(p, &rw, &rx)) {
+    return 0;
+  }
+  UnmapViewOfFile(rx);
+  UnmapViewOfFile(rw);
+  return 1;
+}
+#endif
 
 /* ---- POSIX ---------------------------------------------------------------- */
 
@@ -186,7 +227,7 @@ static Mechanism resolve_mechanism(void) {
 static Mechanism mechanism(void) {
   if (g_mechanism == kMechUnresolved) {
 #if defined(_WIN32)
-    g_mechanism = kMechVirtualProtect;
+    g_mechanism = dual_section_available() ? kMechDualMap : kMechVirtualProtect;
 #else
     g_mechanism = resolve_mechanism();
 #endif
@@ -244,6 +285,18 @@ int jc_code_select_mechanism(const char *name) {
     return 1;
   }
 #endif
+#else
+  if (strcmp(name, "VirtualProtect") == 0) {
+    g_mechanism = kMechVirtualProtect;
+    return 1;
+  }
+  if (strcmp(name, "dual-mapped section") == 0) {
+    if (!dual_section_available()) {
+      return 0;
+    }
+    g_mechanism = kMechDualMap;
+    return 1;
+  }
 #endif
   (void)name;
   return 0;
@@ -264,6 +317,24 @@ JcCodeStatus jc_code_region_create(size_t size, JcCodeRegion *out, char *reason,
     return kJcCodeBadArgument;
   }
 #if defined(_WIN32)
+  if (mechanism() == kMechDualMap) {
+    void *rw;
+    void *rx;
+    if (!map_dual_section(bytes, &rw, &rx)) {
+      say(reason,
+          reason_len,
+          "dual-mapped section of %zu bytes failed (error %lu)",
+          bytes,
+          (unsigned long)GetLastError());
+      return kJcCodeNoMemory;
+    }
+    out->write = (unsigned char *)rw;
+    out->exec = (unsigned char *)rx;
+    out->size = bytes;
+    out->writable = 1;
+    out->mechanism = (int)kMechDualMap;
+    return kJcCodeOk;
+  }
   {
     void *p = VirtualAlloc(NULL, bytes, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
     if (!p) {
@@ -376,7 +447,12 @@ void jc_code_region_destroy(JcCodeRegion *r) {
     return; /* safe on a zeroed region, so teardown needs no null checks */
   }
 #if defined(_WIN32)
-  VirtualFree(r->write, 0, MEM_RELEASE);
+  if (r->mechanism == (int)kMechDualMap) {
+    UnmapViewOfFile(r->exec);
+    UnmapViewOfFile(r->write);
+  } else {
+    VirtualFree(r->write, 0, MEM_RELEASE);
+  }
 #else
   if (r->exec != r->write) {
     munmap(r->exec, r->size);
@@ -405,7 +481,7 @@ JcCodeStatus jc_code_publish_range(JcCodeRegion *r, size_t offset, size_t bytes_
 #if defined(_WIN32)
   {
     DWORD old = 0;
-    if (!VirtualProtect(r->write, r->size, PAGE_EXECUTE_READ, &old)) {
+    if (r->mechanism == (int)kMechVirtualProtect && !VirtualProtect(r->write, r->size, PAGE_EXECUTE_READ, &old)) {
       return kJcCodeNoExecutePermission;
     }
     FlushInstructionCache(GetCurrentProcess(), r->exec + offset, bytes_written);
@@ -465,7 +541,7 @@ JcCodeStatus jc_code_begin_write(JcCodeRegion *r) {
 #if defined(_WIN32)
   {
     DWORD old = 0;
-    if (!VirtualProtect(r->write, r->size, PAGE_READWRITE, &old)) {
+    if (r->mechanism == (int)kMechVirtualProtect && !VirtualProtect(r->write, r->size, PAGE_READWRITE, &old)) {
       return kJcCodeNotWritable;
     }
   }
