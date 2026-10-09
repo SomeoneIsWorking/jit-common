@@ -38,8 +38,6 @@ library's scope.
 - A diagnostic that can print nothing is lying — design the negative case first
   (global rule). This matters here: a block cache that silently misses and a
   persistent cache that silently discards look identical to a working one.
-- Subagents are globally authorized up to the active service limit. Keep
-  ownership non-overlapping and serialize shared builds or singleton runtimes.
 
 ## Continuing the migration
 
