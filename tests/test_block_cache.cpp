@@ -77,7 +77,7 @@ static int g_test_failed;
  * the right answer, and the suite would pass while the cache was broken. So an
  * index past the array ABORTS rather than wrapping into an alias.
  */
-static unsigned char g_host_space[8192];
+static unsigned char g_host_space[131072];
 
 static void *fake_host(uint64_t guest) {
   if (guest >= sizeof g_host_space) {
@@ -483,6 +483,40 @@ static void test_full_cache_refuses(void) {
   jc_block_cache_destroy(c);
 }
 
+/* The table starts small and grows to hold the capacity; nothing held is lost
+   on the way, guards included. */
+static void test_table_grows_to_its_capacity(void) {
+  enum { kBlocks = 100000 };
+  JcBlockCache *c = jc_block_cache_create(1u << 20);
+  JcBlockStats s;
+  int i;
+  int found = 0;
+  CHECK(c != NULL);
+  if (!c) {
+    return;
+  }
+  CHECK_EQ_U(c->capacity, JC_BLOCK_INITIAL_TABLE);
+  CHECK(jc_block_insert(c, 0x10u, fake_host(0x10u), 4));
+  CHECK(jc_block_guard(c, 0x10u));
+  for (i = 1; i < kBlocks; i++) {
+    CHECK(jc_block_insert(c, 0x10u + (JcGuestAddr)i * 3u, fake_host((uint64_t)i), 3));
+  }
+  CHECK_EQ_U(jc_block_count(c), (unsigned)kBlocks);
+  CHECK(c->capacity >= 2u * (size_t)kBlocks);
+  for (i = 1; i < kBlocks; i++) {
+    if (jc_block_lookup(c, 0x10u + (JcGuestAddr)i * 3u) == fake_host((uint64_t)i)) {
+      found++;
+    }
+  }
+  CHECK_EQ_U(found, kBlocks - 1);
+  CHECK(jc_block_lookup_refusing(c, 0x10u, JC_BLOCK_GUARDED) == NULL);
+  CHECK(jc_block_lookup(c, 0x10u) == fake_host(0x10u));
+  jc_block_stats(c, &s);
+  CHECK(s.grows > 0u);
+  CHECK_EQ_U(s.insert_refusals, 0u);
+  jc_block_cache_destroy(c);
+}
+
 /* Re-inserting the same guest address replaces it: that is retranslation after
    an invalidation, not a duplicate. */
 static void test_reinsert_replaces(void) {
@@ -749,6 +783,7 @@ int main(void) {
   RUN(test_entry_at_its_own_home_is_not_shifted_back);
   RUN(test_nothing_is_stranded_by_deletion);
   RUN(test_full_cache_refuses);
+  RUN(test_table_grows_to_its_capacity);
   RUN(test_published_layout_finds_the_same_slot);
   RUN(test_empty_report_names_its_denominator);
   RUN(test_bad_arguments);

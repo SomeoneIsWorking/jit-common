@@ -90,6 +90,7 @@ typedef struct JcBlockStats {
   /* Of `invalidations`, answered without scanning the table because no block
      was ever inserted in any region the range touches (see JcBlockCache). */
   uint64_t invalidations_unscanned;
+  uint64_t grows; /* table doublings on the way to the ceiling */
 } JcBlockStats;
 
 /*
@@ -150,12 +151,16 @@ static inline size_t jc_block_front_slot(JcGuestAddr guest) {
  * slot.
  */
 #define JC_BLOCK_REGION_SHIFT 16u
+/* Entries a new table starts with; it doubles as blocks arrive, up to the
+   capacity the cache was created with. */
+#define JC_BLOCK_INITIAL_TABLE 8192u
 #define JC_BLOCK_REGION_BITS 65536u
 
 typedef struct JcBlockCache {
   JcBlockEntry *entries;
   JcBlockFront *front; /* JC_BLOCK_FRONT_SLOTS entries; see above */
-  size_t capacity;     /* power of two */
+  size_t capacity;     /* entries in the table now, a power of two */
+  size_t ceiling;      /* entries the table may grow to */
   size_t mask;
   unsigned shift; /* 64 - log2(capacity) */
   size_t count;
@@ -165,9 +170,10 @@ typedef struct JcBlockCache {
 } JcBlockCache;
 
 /*
- * Create a cache holding up to `capacity` blocks. The table is rounded up to a
- * power of two and kept below a load factor, because open addressing degrades
- * sharply when full and the emitted lookup has no way to bail out early.
+ * Create a cache holding up to `capacity` blocks. The table starts small and
+ * doubles as blocks arrive, staying at most half full, because open addressing
+ * degrades sharply when full and the emitted lookup has no way to bail out
+ * early. Memory follows the blocks actually held, not the capacity.
  */
 JcBlockCache *jc_block_cache_create(size_t capacity);
 void jc_block_cache_destroy(JcBlockCache *c);
@@ -303,7 +309,8 @@ void jc_block_stats_report(const JcBlockCache *c, char *buf, size_t len);
 
 /*
  * The table's memory layout, so a JIT can emit the lookup inline instead of
- * calling jc_block_lookup.
+ * calling jc_block_lookup. `entries`, `mask` and `hash_shift` change when an
+ * insert grows the table, so they hold only until the next insert.
  *
  * Published from the real structure rather than duplicated in the emitter: an
  * emitter carrying its own idea of the entry size or the guest-address offset

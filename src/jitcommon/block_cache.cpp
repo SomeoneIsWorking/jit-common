@@ -111,6 +111,65 @@ static int regions_may_hold_blocks(const JcBlockCache *c, GuestSpan span) {
   }
 }
 
+static JcBlockEntry *empty_entries(size_t table) {
+  JcBlockEntry *entries;
+  size_t i;
+  if (table < 8u) {
+    return NULL;
+  }
+  entries = (JcBlockEntry *)malloc(table * sizeof *entries);
+  if (!entries) {
+    return NULL;
+  }
+  for (i = 0; i < table; i++) {
+    entries[i].guest = JC_BLOCK_EMPTY;
+    entries[i].host = NULL;
+    entries[i].guest_len = 0;
+    entries[i].flags = 0;
+  }
+  return entries;
+}
+
+/* A power-of-two slot count and the hash shift that indexes it. */
+struct TableSize {
+  size_t slots;
+  unsigned shift;
+};
+
+static void set_table(JcBlockCache *c, JcBlockEntry *entries, TableSize size) {
+  c->entries = entries;
+  c->capacity = size.slots;
+  c->mask = size.slots - 1u;
+  c->shift = size.shift;
+}
+
+/* Double the table and rehash into it. Entries are copied whole, so a guard
+   survives; the front cache holds (guest, host) copies and stays valid. */
+static int grow(JcBlockCache *c) {
+  const size_t table = c->capacity * 2u;
+  JcBlockEntry *old = c->entries;
+  const size_t old_table = c->capacity;
+  JcBlockEntry *entries = empty_entries(table);
+  size_t i;
+  if (!entries) {
+    return 0;
+  }
+  /* Twice the slots is one more index bit, taken from the hash's high end. */
+  set_table(c, entries, {table, c->shift - 1u});
+  for (i = 0; i < old_table; i++) {
+    if (old[i].guest != JC_BLOCK_EMPTY) {
+      size_t j = home_slot(c, old[i].guest);
+      while (entries[j].guest != JC_BLOCK_EMPTY) {
+        j = (j + 1u) & c->mask;
+      }
+      entries[j] = old[i];
+    }
+  }
+  free(old);
+  c->stats.grows++;
+  return 1;
+}
+
 static void clear_front(JcBlockCache *c) {
   size_t i;
   for (i = 0; i < JC_BLOCK_FRONT_SLOTS; i++) {
@@ -125,7 +184,7 @@ extern "C" {
 
 JcBlockCache *jc_block_cache_create(size_t capacity) {
   JcBlockCache *c;
-  size_t i;
+  size_t ceiling;
   size_t table;
   if (capacity == 0) {
     return NULL;
@@ -137,18 +196,19 @@ JcBlockCache *jc_block_cache_create(size_t capacity) {
    * lookup, it turns emitted hits into slow-path calls. Headroom is not
    * generosity here, it is what keeps the inline lookup worth emitting.
    */
-  table = round_up_pow2(capacity * 2u);
-  if (table == 0 || table < 8u) {
-    table = (table == 0) ? 0 : 8u;
-  }
-  if (table == 0) {
+  ceiling = round_up_pow2(capacity * 2u);
+  if (ceiling == 0) {
     return NULL;
   }
+  if (ceiling < 8u) {
+    ceiling = 8u;
+  }
+  table = ceiling < JC_BLOCK_INITIAL_TABLE ? ceiling : JC_BLOCK_INITIAL_TABLE;
   c = (JcBlockCache *)calloc(1, sizeof *c);
   if (!c) {
     return NULL;
   }
-  c->entries = (JcBlockEntry *)malloc(table * sizeof *c->entries);
+  c->entries = empty_entries(table);
   c->front = (JcBlockFront *)malloc(JC_BLOCK_FRONT_SLOTS * sizeof *c->front);
   if (!c->entries || !c->front) {
     free(c->entries);
@@ -157,16 +217,9 @@ JcBlockCache *jc_block_cache_create(size_t capacity) {
     return NULL;
   }
   clear_front(c);
-  c->capacity = table;
-  c->mask = table - 1u;
-  c->shift = (unsigned)(64u - log2_size(table));
+  set_table(c, c->entries, {table, (unsigned)(64u - log2_size(table))});
+  c->ceiling = ceiling;
   c->limit = capacity;
-  for (i = 0; i < table; i++) {
-    c->entries[i].guest = JC_BLOCK_EMPTY;
-    c->entries[i].host = NULL;
-    c->entries[i].guest_len = 0;
-    c->entries[i].flags = 0;
-  }
   return c;
 }
 
@@ -234,6 +287,11 @@ int jc_block_insert(JcBlockCache *c, JcGuestAddr guest, void *host, uint32_t gue
     /* REFUSED, not evicted. Something a chained branch already points at could
        be the victim, and quietly dropping it is corruption rather than
        pressure. The caller's answer to a full cache is to flush. */
+    c->stats.insert_refusals++;
+    return 0;
+  }
+  /* Kept at most half full, the load the emitted single-slot probe needs. */
+  if ((c->count + 1u) * 2u > c->capacity && c->capacity < c->ceiling && !grow(c)) {
     c->stats.insert_refusals++;
     return 0;
   }
@@ -420,27 +478,28 @@ void jc_block_stats_report(const JcBlockCache *c, char *buf, size_t len) {
     const uint64_t probed = s.lookups - s.front_hits - s.front_refusals;
     mean_probe = probed ? (double)s.probe_length_total / (double)probed : 0.0;
   }
-  snprintf(
-      buf,
-      len,
-      "block cache: %.1f%% hit (%llu/%llu lookups, %llu from the front cache), %zu held, %llu insert(s), "
-      "%llu refused, %llu lookup(s) refused to the dispatcher, %llu invalidation(s) (%llu unscanned) dropping %llu "
-      "block(s), %llu flush(es), "
-      "table probe mean %.2f max %llu",
-      hit_rate,
-      (unsigned long long)s.hits,
-      (unsigned long long)s.lookups,
-      (unsigned long long)s.front_hits,
-      c->count,
-      (unsigned long long)s.inserts,
-      (unsigned long long)s.insert_refusals,
-      (unsigned long long)s.refused,
-      (unsigned long long)s.invalidations,
-      (unsigned long long)s.invalidations_unscanned,
-      (unsigned long long)s.blocks_invalidated,
-      (unsigned long long)s.flushes,
-      mean_probe,
-      (unsigned long long)s.probe_length_max);
+  snprintf(buf,
+           len,
+           "block cache: %.1f%% hit (%llu/%llu lookups, %llu from the front cache), %zu held, %llu insert(s), "
+           "%llu refused, %llu table growth(s), %llu lookup(s) refused to the dispatcher, %llu invalidation(s) (%llu "
+           "unscanned) dropping %llu "
+           "block(s), %llu flush(es), "
+           "table probe mean %.2f max %llu",
+           hit_rate,
+           (unsigned long long)s.hits,
+           (unsigned long long)s.lookups,
+           (unsigned long long)s.front_hits,
+           c->count,
+           (unsigned long long)s.inserts,
+           (unsigned long long)s.insert_refusals,
+           (unsigned long long)s.grows,
+           (unsigned long long)s.refused,
+           (unsigned long long)s.invalidations,
+           (unsigned long long)s.invalidations_unscanned,
+           (unsigned long long)s.blocks_invalidated,
+           (unsigned long long)s.flushes,
+           mean_probe,
+           (unsigned long long)s.probe_length_max);
 }
 
 void jc_block_table_layout(const JcBlockCache *c, JcBlockTableLayout *out) {
