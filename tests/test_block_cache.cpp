@@ -487,7 +487,7 @@ static void test_full_cache_refuses(void) {
    on the way, guards included. */
 static void test_table_grows_to_its_capacity(void) {
   enum { kBlocks = 100000 };
-  JcBlockCache *c = jc_block_cache_create(1u << 20);
+  JcBlockCache *c = jc_block_cache_create(1u << 20u);
   JcBlockStats s;
   int i;
   int found = 0;
