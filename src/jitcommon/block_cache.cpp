@@ -77,13 +77,13 @@ struct GuestSpan {
    covering more regions than there are bits marks every bit. */
 static void mark_regions(JcBlockCache *c, GuestSpan span) {
   JcGuestAddr region = span.first_region();
-  const JcGuestAddr last = span.last_region();
+  JcGuestAddr last = span.last_region();
   if (last - region >= JC_BLOCK_REGION_BITS) {
     memset(c->regions, 0xff, sizeof c->regions);
     return;
   }
   for (;;) {
-    const size_t bit = region_bit(region);
+    size_t bit = region_bit(region);
     c->regions[bit / 64u] |= (uint64_t)1u << (bit % 64u);
     if (region == last) {
       return;
@@ -95,12 +95,12 @@ static void mark_regions(JcBlockCache *c, GuestSpan span) {
 /* Whether any region [lo, hi) touches may hold a block. */
 static int regions_may_hold_blocks(const JcBlockCache *c, GuestSpan span) {
   JcGuestAddr region = span.first_region();
-  const JcGuestAddr last = span.last_region();
+  JcGuestAddr last = span.last_region();
   if (last - region >= JC_BLOCK_REGION_BITS) {
     return 1; /* touches every bit */
   }
   for (;;) {
-    const size_t bit = region_bit(region);
+    size_t bit = region_bit(region);
     if (c->regions[bit / 64u] & ((uint64_t)1u << (bit % 64u))) {
       return 1;
     }
@@ -146,9 +146,9 @@ static void set_table(JcBlockCache *c, JcBlockEntry *entries, TableSize size) {
 /* Double the table and rehash into it. Entries are copied whole, so a guard
    survives; the front cache holds (guest, host) copies and stays valid. */
 static int grow(JcBlockCache *c) {
-  const size_t table = c->capacity * 2u;
+  size_t table = c->capacity * 2u;
   JcBlockEntry *old = c->entries;
-  const size_t old_table = c->capacity;
+  size_t old_table = c->capacity;
   JcBlockEntry *entries = empty_entries(table);
   size_t i;
   if (!entries) {
@@ -475,7 +475,7 @@ void jc_block_stats_report(const JcBlockCache *c, char *buf, size_t len) {
   hit_rate = s.lookups > s.refused ? 100.0 * (double)s.hits / (double)(s.lookups - s.refused) : 0.0;
   /* Probes are paid only by lookups the front cache did not answer. */
   {
-    const uint64_t probed = s.lookups - s.front_hits - s.front_refusals;
+    uint64_t probed = s.lookups - s.front_hits - s.front_refusals;
     mean_probe = probed ? (double)s.probe_length_total / (double)probed : 0.0;
   }
   snprintf(buf,
