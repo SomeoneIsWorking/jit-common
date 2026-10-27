@@ -48,8 +48,7 @@ this library. To pick the work up in a new session:
    item in play; read its row and its detail section.
 2. Read `docs/migration.md` for the architecture that item sits in.
 3. Check `docs/issues/` for open atomic work against that state item.
-4. Update `docs/project-state.md` in the same change that advances an item, and
-   run `python3 ../re-harness/tools/project_state.py --root .` afterwards.
+4. Update `docs/project-state.md` in the same change that advances an item.
 
 Do not infer progress from code presence, commit history, or a project README —
 the state ledger is the authority, and a stale one is the failure mode this

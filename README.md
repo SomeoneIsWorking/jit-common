@@ -32,12 +32,6 @@ should read them:
 | [`docs/project-goals.md`](docs/project-goals.md) | Why, and what "done" means for the program |
 | [`docs/issues/`](docs/issues/) | Atomic work points, linked to state items |
 
-Validate the ledger after every edit:
-
-```sh
-python3 ../re-harness/tools/project_state.py --root .
-```
-
 Maintainer verification uses Clang and the shared C++ policy checker from a
 sibling `re-harness` checkout. Hosted CI fetches its pinned revision under
 `build/deps/re-harness`. The normal CTest run checks behavior, formatting,
