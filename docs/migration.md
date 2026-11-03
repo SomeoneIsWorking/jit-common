@@ -215,8 +215,8 @@ directly on Xenia or `x360port`.
 
 Use Dolphin's dynarec and runtime image ownership. Add a guest-address native
 hook that remains correct across block shapes, chaining, invalidation, and host
-architectures; do not revive the previously removed generated path. Sunbright
-is the first and only title until its declared gate is complete.
+architectures; do not revive the previously removed generated path. No title
+consumes `gcnport`.
 
 ### 5. Amiga and NES
 
@@ -263,7 +263,6 @@ gameplay evidence gate above.
 | C-12 | Execute the authenticated whole program beyond its first VSync/former static miss through the PSX dynarec. |
 | Gears of War | After deleting the static executor/corpus, execute real leaf `0x8222E868`, one typed import, and disabled/enabled/super override paths through `x360port`; put reusable UE3/Xbox semantics in `x360ue3` and exact Gears behavior in `GearsUE3`. |
 | Marvel: Ultimate Alliance | After deleting its static product surfaces, execute the exact Gold XEX entry `0x824806D8` through `x360port` until the first named missing service with nonzero Xenia JIT blocks. Adopt `shared/alchemy` only after X-Men 2 proves each shared engine contract. |
-| Sunbright | Boot exact `GMSE01` and prove the `J3DShape::draw` hook at `0x802e0390` through Dolphin's dynarec without generated guest code. |
 | Benefactor | Reach current title synchronization through a maintained 68000 core across its four address-reusing images, then qualify representative interactive gameplay performance. |
 | Mimp | Execute RESET through title/attract using a maintained 6502 core, physical MMC3 block identity, and no host-stack/generated-function coroutine model; then qualify representative gameplay performance. |
 

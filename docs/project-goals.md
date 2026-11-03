@@ -42,7 +42,7 @@ Success conditions:
   and static methodology are deleted. The build fails explicitly at the missing
   runtime-executor boundary until the replacement lands.
 
-Contributing state items: S010–S015, S020–S032, S040–S045, S050–S051,
+Contributing state items: S010–S015, S020–S032, S040–S045, S050,
 S060–S062, S070–S081.
 
 ## G002 — Each guest platform has one execution owner
@@ -84,7 +84,7 @@ Success conditions:
   product is not retained as a permanent oracle.
 
 Contributing state items: every title capability in S011–S012, S021–S032,
-S041–S042, S051, S061–S062, S071, and S081.
+S041–S042, S061–S062, S071, and S081.
 
 ## G004 — Every declared dynarec host has a real backend
 

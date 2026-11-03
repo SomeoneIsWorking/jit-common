@@ -53,7 +53,6 @@ project-local plans before any further runtime implementation.
 | S044 | MUA consumes and extends the Alchemy contracts proved by X-Men 2 without creating a parallel title-local engine | missing | S015, X-Men 2 complete goals | G007 |
 | S045 | `x360ue3` provides a clean title-neutral UE3-on-Xbox-360 layer between `x360port` and `GearsUE3` | missing | S040 | G008 |
 | S050 | `gcnport` executes GameCube guest code through Dolphin's dynarec and owns robust runtime hooks | partial | S005 | G001, G002, G004 |
-| S051 | Sunbright reaches its current frontier through `gcnport` with its generated corpus removed | missing | S050 | G001, G003 |
 | S060 | Kirbh has one clean `gbaport` native/emulator product architecture | missing | S005 | G001, G002, G006 |
 | S061 | Kirbh provides drop-in split-screen multiplayer | missing | S060 | G003, G006 |
 | S062 | Kirbh provides a wider gameplay camera without final-image stretching | missing | S060 | G003, G006 |
@@ -351,13 +350,7 @@ Partial capability at committed `shared/gcnport` revision `70ec0b0` ([canonical 
 framework policy, authenticated hook/original state machine, and synthetic
 Dolphin JIT cold/cache/hook/invalidation execution are verified on hosted
 desktop targets. Gap: six of eleven embedding-contract operations, typed
-fallback, and a complete shipping adapter remain missing; this does not qualify
-Sunbright gameplay.
-
-### S051 — Sunbright
-
-Missing capability: boot exact `GMSE01` and prove the J3D draw hook through
-Dolphin's dynarec, then remove roughly 2.79 million generated source lines.
+fallback, and a complete shipping adapter remain missing; no title consumes it.
 
 ### S060 — Kirbh deferred runtime
 
