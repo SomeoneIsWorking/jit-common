@@ -52,3 +52,5 @@ to a dynarec/JIT and may use only bounded, reason-coded interpreter fallback.
 NES, GBA, and Amiga may use a maintained interpreter when representative
 gameplay qualifies it on each host. The current focus in
 [`docs/project-state.md`](docs/project-state.md) names the next unfinished boundary.
+
+Built with AI assistance (Claude and other LLMs).
