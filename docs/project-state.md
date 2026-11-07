@@ -74,7 +74,7 @@ with a complete checkout history and no game assets:
 | Host | State | Evidence or exact gap |
 | --- | --- | --- |
 | Linux x86-64 | supported | `.github/workflows/ci.yml` configures and runs the CMake tests with Clang. |
-| Windows x86-64 | supported | Hosted run `33890983817` at `4512a2054b0ecf737b6dd0b03f23713d23550b3c` passed clang-cl compilation plus the native Windows executable-memory and block-cache tests. |
+| Windows x86-64 | supported | Hosted run `33890983817` at `1f2c5ce6e096c3017fea01783b78b24918219dcb` passed clang-cl compilation plus the native Windows executable-memory and block-cache tests. |
 | macOS arm64 | supported | `.github/workflows/ci.yml` configures and runs the CMake tests with Apple Silicon Clang and the MAP_JIT path. |
 | macOS x86-64 | supported | `.github/workflows/ci.yml` configures and runs the CMake tests with Intel Apple Clang and the MAP_JIT path. |
 | Android arm64-v8a | missing | The code-memory layer is relevant to Android dynarecs, but there is not yet an NDK build plus native device/emulator runtime discriminator for executable publication, write protection, and instruction-cache coherence. `shared/android-port` should supply that device boundary; configure-only evidence is intentionally absent. |

@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 env:
-  RE_HARNESS_REVISION: f09a67f37f641a1c60eedfe6f7e92e34fe668ee3
+  RE_HARNESS_REVISION: 4a85ff5249548af47de5db0ee714c1942b3910bb
 
 jobs:
   linux-x86-64:
